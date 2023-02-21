@@ -22,6 +22,10 @@ def get_config(loc=None):
 
     with open( os.path.expanduser(loc) ) as fh:
         _in = yaml.safe_load(fh)['mypd']
+        if 'team_id' in _in:
+            if 'team_ids' not in _in:
+                _in['team_ids'] = list()
+            _in['team_ids'].append(_in.pop('team_id'))
         cls = namedtuple('PDC', tuple(sorted(_in)))
         return cls( **_in )
 
