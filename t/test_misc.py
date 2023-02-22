@@ -33,6 +33,14 @@ def test_aliases_and_colloquialisms_context_user():
 def test_aliases_and_colloquialisms_context_team():
     test_aliases_and_colloquialisms(context='team')
 
-def test_aliases_and_colloquialisms_context_team():
+def test_aliases_and_colloquialisms_context_status():
     with pytest.raises(c.StatusesException):
         test_aliases_and_colloquialisms(context='status')
+
+def test_aliases_and_colloquialisms_context_include():
+    with pytest.raises(c.IncludesException):
+        test_aliases_and_colloquialisms(context='include')
+
+def test_aliases_and_colloquialisms_context_dumb():
+    with pytest.raises(c.ContextsException):
+        test_aliases_and_colloquialisms(context='dumb')
