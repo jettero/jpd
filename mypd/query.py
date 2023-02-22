@@ -29,6 +29,7 @@ def fetch_incident(id, sess=get_session()):
     if res.ok:
         return res.json()['incident']
 
+@cache_json_reply
 def list_incidents(
     user_ids="me",
     team_ids=None,
