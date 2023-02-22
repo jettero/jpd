@@ -30,9 +30,9 @@ class StatusesException(Exception):
 
     def __init__(self, moar=None):
         if moar:
-            super.__init__(f'{moar} — {self.IMA} must be in ({", ".join(self.SET_MEMBERS)})')
+            super().__init__(f'{moar} — {self.IMA} must be in ({", ".join(self.SET_MEMBERS)})')
         else:
-            super.__init__(f'{self.IMA} must be in ({", ".join(self.SET_MEMBERS)})')
+            super().__init__(f'{self.IMA} must be in ({", ".join(self.SET_MEMBERS)})')
 
     @classmethod
     def check(cls, *x, fail_raise=True):

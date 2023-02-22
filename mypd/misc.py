@@ -32,25 +32,22 @@ def aliases_and_colloquialisms(*items, context="user"):
     for item in items:
         if isinstance(item, (list, tuple)):
             yield from aliases_and_colloquialisms(*item)
+            continue
         elif isinstance(item, str):
             if item in ("all", "any"):
                 if context == 'include':
                     yield from C.INCLUDES
-                    break
                 else:
-                    yield None  # non triggers the upper layers to un-fill the param
-            if context == "status":
-                yield item
-            elif context == "include":
-                yield item
-            elif context == "user":
-                if item in C.SELF_AND_TEAM:
+                    yield None  # None triggers the upper layers to un-fill the param
+                break
+            elif item in C.SELF_AND_TEAM:
+                if context == 'user':
                     yield PDC.user_id
-            elif context == "team":
-                if item in C.SELF_AND_TEAM:
+                    continue
+                elif context == 'team':
                     yield from PDC.team_ids
-            else:
-                yield item
+                    continue
+        yield item
 
 
 def split_strings_maybe(*items, context="user"):
