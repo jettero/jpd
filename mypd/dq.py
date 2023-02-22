@@ -19,17 +19,20 @@ def make_key(*a, **kw):
 
     return s.hexdigest()
 
-def cache_json_reply(using_defaults=None, max_age=4000, cache_dir=XDG_CACHE_LOCATION):
+def cache_json_reply(using_defaults=None, name=None, max_age=4000, cache_dir=XDG_CACHE_LOCATION):
     def outer(f):
+        cache_group = (name if name is not None else f.__name__).replace('/', '-')
         def inner(*a, **kw):
             k = make_key(*a, **kw)
-            p = os.path.join(cache_dir, k[:4], k[4:] + '.json')
+            d = os.path.join(cache_dir, cache_group, k[:4])
+            p = os.path.join(d, k[4:] + '.json')
             if os.path.isfile(p):
                 with open(p, 'r') as fh:
-                    return json.read(fh)
+                    return json.load(fh)
             r = f(*a, **kw)
+            os.makedirs(d, mode=0o0700, exist_ok=True)
             with open(p, 'w') as fh:
-                json.dump(p, sort_keys=True, indent=2)
+                json.dump(r, fh, sort_keys=True, indent=2)
             return r
         return inner
     if callable(using_defaults):
