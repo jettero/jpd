@@ -6,7 +6,8 @@ import logging
 from pdpyras import APISession as PDSession
 
 from mypd.config import PDC
-from mypd.misc import parse_date, split_strings_maybe
+from mypd.misc import parse_date, spytplit_strings_maybe
+from mypd.dq import cache_json_reply
 import mypd.const as C
 
 SESSION = None
@@ -22,8 +23,10 @@ def get_session():
 
     return SESSION
 
-def fetch_incident(id):
-    pass
+def fetch_incident(id, sess=get_session()):
+    res = sess.get(f'/incidents/{id}')
+    if res.ok:
+        return res.json()['incident']
 
 def list_incidents(
     user_ids="me",
