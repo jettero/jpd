@@ -5,12 +5,13 @@ import logging
 
 from pdpyras import APISession as PDSession
 
-from .config import PDC
-from .misc import parse_date, us_and_them, split_strings_maybe
+from mypd.config import PDC
+from mypd.misc import parse_date, split_strings_maybe
+import mypd.const as C
 
 SESSION = None
 
-log = logging.getLogger("mypd.raw")
+log = logging.getLogger("mypd.query")
 
 
 def get_session():
@@ -21,8 +22,20 @@ def get_session():
 
     return SESSION
 
+def fetch_incident(id):
+    pass
+
 def list_incidents(
-    user_ids='me', team_ids=None, statuses=None, sess=get_session(), since=None, until=None, date_range=None, test=False, **params
+    user_ids="me",
+    team_ids=None,
+    statuses=None,
+    sess=get_session(),
+    since=None,
+    until=None,
+    date_range=None,
+    test=False,
+    include=C.INCLUDES,
+    **params,
 ):
     """
     ... need more docs ...
@@ -51,9 +64,12 @@ def list_incidents(
     if statuses := split_strings_maybe(statuses, context="status"):
         params["statuses[]"] = statuses
 
+    if include := split_strings_maybe(include, context="include"):
+        params["include[]"] = statuses
+
     log.debug("list_all(params=%s)", params)
 
     if test:
-        return ('/incidents', params)
+        return ("/incidents", params)
 
     return sess.list_all("incidents", params=params)
