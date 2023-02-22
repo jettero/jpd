@@ -36,7 +36,7 @@ class StatusesException(Exception):
 
     @classmethod
     def check(cls, *x, fail_raise=True):
-        not_in = [y for y in x if y not in self.SET_MEMBERS]
+        not_in = [y for y in x if y not in cls.SET_MEMBERS]
         if not_in:
             if fail_raise:
                 raise cls(f"invalid: {not_in}")

@@ -24,8 +24,9 @@ def get_session():
     return SESSION
 
 @cache_json_reply
-def fetch_incident(id, sess=get_session()):
-    res = sess.get(f'/incidents/{id}')
+def fetch_incident(id, sess=get_session(), include=C.INCIDENT_INCLUDES):
+    if include := split_strings_maybe(include, context="include"):
+        params["include[]"] = statuses
     if res.ok:
         return res.json()['incident']
 
@@ -39,7 +40,7 @@ def list_incidents(
     until=None,
     date_range=None,
     test=False,
-    include=C.INCLUDES,
+    include=C.LIST_INCIDENT_INCLUDES,
     **params,
 ):
     """
