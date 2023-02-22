@@ -2,3 +2,4 @@ pdpyras
 tabulate
 click
 dateparse
+simplejson

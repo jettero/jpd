@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import datetime
+import shlex
 import dateparser
 
 from .config import PDC
@@ -26,29 +27,45 @@ def parse_date(x, in_utc=True, fmt="%Y-%m-%dT%H:%M%Z", utc_to_zulu=True):
 
 
 def us_and_them(*items, context="user"):
+    try:
+        context = context.lower()[0]
+    except:
+        context = 'u'
+    if context not in ('u', 't', 's'):
+        raise Exception('context must be in (user, team, status)')
+
     for item in items:
         if isinstance(item, (list, tuple)):
-            yield from _us_and_them(*item)
+            yield from us_and_them(*item)
         elif isinstance(item, str):
             if item in ("all", "any"):
-                if context == "status":
-                    yield from ("triggered", "acknowledged", "resolved")
+                yield None # non triggers the upper layers to un-fill the param
+                break
+            if context =='s':
+                if item not in ('triggered', 'resolved', 'acknowledged'):
+                    raise Exception("status must be in (triggered, resolved, acknowledged)")
+                yield item
             if item in ("me", "mine"):
                 yield PDC.user_id
             elif item == "them":
                 yield from PDC.team_ids
             elif item == "us":
-                if context == "user":
+                if context == 'u':
                     yield PDC.user_id
-                elif context == "teams":
+                elif context == 't':
                     yield PDC.team_ids
+            else:
+                yield item
 
 
-def split_strings_maybe(*items):
+def split_strings_maybe(*items, context='user'):
     ret = set()
     for item in items:
         if isinstance(item, (list, tuple)):
-            ret.update(_split_strings_maybe(*item))
+            ret.update(split_strings_maybe(*item))
         elif isinstance(item, str):
-            ret.add(_us_and_them(*shlex.split(item)))
-    return list(sorted(ret))
+            ret.update(shlex.split(item))
+    ret = list(sorted(us_and_them(*ret, context=context)))
+    if None in ret:
+        return
+    return ret
