@@ -1,0 +1,32 @@
+default_stages:
+- push
+fail_fast: true
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v2.5.0
+  hooks:
+  - id: check-yaml
+    exclude: 'old/'
+  - id: end-of-file-fixer
+    exclude: 'old/'
+  - id: trailing-whitespace
+    exclude: 'old/'
+- repo: https://github.com/pycqa/pylint
+  rev: pylint-2.4.2
+  hooks:
+  - id: pylint
+    files: 'space/'
+- repo: https://github.com/psf/black
+  rev: 19.10b0
+  hooks:
+  - id: black
+    exclude: 'old/'
+
+# this doesn't seem to quite work...
+# - repo: local
+#   hooks:
+#     - id: tests
+#       name: run tests
+#       entry: pytest
+#       language: system
+#       types: [python]
