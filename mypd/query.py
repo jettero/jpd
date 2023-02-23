@@ -7,7 +7,7 @@ from pdpyras import APISession as PDSession
 
 from mypd.config import PDC
 from mypd.misc import parse_date, split_strings_maybe
-from mypd.dq import cache_json_reply
+from mypd.dq import auto_cache
 import mypd.const as C
 
 SESSION = None
@@ -23,21 +23,20 @@ def get_session():
 
     return SESSION
 
-@cache_json_reply
 def fetch_incident(id, sess=get_session(), include=C.INCIDENT_INCLUDES):
     if include := split_strings_maybe(include, context="include"):
         params["include[]"] = statuses
+    # XXX: when did I break this... there's nolonger a res=sess.something() at all
     if res.ok:
         return res.json()['incident']
 
-@cache_json_reply
 def list_incidents(
     user_ids="me",
     team_ids=None,
     statuses=None,
-    sess=get_session(),
     since=None,
     until=None,
+    sess=get_session(),
     date_range=None,
     test=False,
     include=C.LIST_INCIDENT_INCLUDES,
@@ -73,9 +72,9 @@ def list_incidents(
     if include := split_strings_maybe(include, context="include"):
         params["include[]"] = statuses
 
-    log.debug("list_all(params=%s)", params)
-
     if test:
         return ("/incidents", params)
 
-    return sess.list_all("incidents", params=params)
+    log.debug('list_incidents -> list_all(%s)', params)
+
+    return auto_cache(sess.list_all, 'incidents', params=params)
