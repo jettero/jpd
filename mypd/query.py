@@ -59,10 +59,10 @@ def list_incidents(
         params["user_ids[]"] = user_ids
 
     if since is not None:
-        params["since"] = parse_date(since).strftime("%Y-%m-%dT%H:%M%Z")
+        params["since"] = parse_date(since)
 
     if until is not None:
-        params["until"] = parse_date(until).strftime("%Y-%m-%dT%H:%M%Z")
+        params["until"] = parse_date(until)
 
     if team_ids := split_strings_maybe(team_ids):
         params["team_ids[]"] = team_ids
