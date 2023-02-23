@@ -44,3 +44,9 @@ def test_aliases_and_colloquialisms_context_include():
 def test_aliases_and_colloquialisms_context_dumb():
     with pytest.raises(c.ContextsException):
         test_aliases_and_colloquialisms(context='dumb')
+
+def test_split_strings_maybe(context=None):
+    kw = dict()
+    if context:
+        kw['context'] = context
+    assert m.split_strings_maybe('this is a test', **kw) == list(sorted(('this', 'is', 'a', 'test')))
