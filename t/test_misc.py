@@ -9,9 +9,11 @@ def test_parse_date():
     oda = m.parse_date('1 day ago')
     assert oda.startswith('20')
     assert 'T' in oda
+    assert oda[-1] == 'Z'
 
     at_the_time_of_this_writing = m.parse_date('22/Feb/2023 23:22:21 EST')
     assert at_the_time_of_this_writing == '2023-02-23T04:22Z'
+    assert at_the_time_of_this_writing.endswith('Z')
 
 def test_aliases_and_colloquialisms(context=None):
     kw = dict()
