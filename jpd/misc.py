@@ -54,7 +54,7 @@ def split_strings_maybe(*items, context="user"):
     ret = set()
     for item in items:
         if isinstance(item, (list, tuple)):
-            r = split_strings_maybe(*item)
+            r = split_strings_maybe(*item, context=context)
             if r is None:
                 break
             ret.update(r)
