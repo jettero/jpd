@@ -8,10 +8,10 @@ import xdg
 
 # xdg.xdg_config_home() = XDG_CONFIG_HOME = PosixPath('/home/jettero/.config')
 
-DEFAULT_CONFIG_LOCATIONS = [
+DEFAULT_CONFIG_LOCATIONS = (
     os.path.join(xdg.xdg_config_home(), "jpd", "config.yaml"),
     "~/.jpd.yaml",
-]
+)
 
 class JPDConfig:
     class Meta:
@@ -20,7 +20,6 @@ class JPDConfig:
         hide = ['api_key']
 
     def __init__(self, *locations):
-        self.locations = locations
         cls = type(self)
         def gen_prop(field, ufield):
             if field in self.Meta.pluralize:
@@ -33,8 +32,8 @@ class JPDConfig:
             ufield = f'_{field}'
             # This gen_prop function only exists to make a pesudo dynamic lexical scope binding
             gen_prop(field, ufield)
-
-        self.reload_config()
+        self.locations = DEFAULT_CONFIG_LOCATIONS + locations
+        self.read_config()
 
     def __repr__(self):
         def hv(f):
@@ -45,9 +44,9 @@ class JPDConfig:
         vars = ' '.join([ f'{f}={hv(f)}' for f in self.Meta.fields ])
         return f'JPDConfig<{vars}>'
 
-    def reload_config(self):
+    def read_config(self, *locations):
         read_something = False
-        for loc in self.locations:
+        for loc in (locations or self.locations):
             try:
                 with open(os.path.expanduser(loc)) as fh:
                     _in = yaml.safe_load(fh)["jpd"]

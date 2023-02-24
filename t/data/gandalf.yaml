@@ -1,0 +1,9 @@
+
+jpd:
+  api_key: 'ThereCanOnlyBeOneLordOfTheRings'
+  email: 'gandalf@guhmail.com'
+  user_id: GANDALF
+  team_ids:
+    - FELLOWSHIP
+    - MAIAR
+    - RING_BEARERS
