@@ -77,4 +77,4 @@ def list_incidents(
 
     log.debug('list_incidents -> list_all(%s)', params)
 
-    return auto_cache(sess.list_all, 'incidents', params=params)
+    return auto_cache(sess.list_all, 'incidents', params=params, cache_group='list_incidents')
