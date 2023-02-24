@@ -31,7 +31,7 @@ def aliases_and_colloquialisms(*items, context="user"):
         C.IncludesException.check(*items)
     for item in items:
         if isinstance(item, (list, tuple)):
-            yield from aliases_and_colloquialisms(*item)
+            yield from aliases_and_colloquialisms(*item, context=context)
             continue
         elif isinstance(item, str):
             if item in ("all", "any"):
