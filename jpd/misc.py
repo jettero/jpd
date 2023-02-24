@@ -25,10 +25,6 @@ def parse_date(x, in_utc=True, fmt="%Y-%m-%dT%H:%M%Z", utc_to_zulu=True):
 
 def aliases_and_colloquialisms(*items, context="user"):
     C.ContextsException.check(context)
-    if context == "status":
-        C.StatusesException.check(*items)
-    elif context == "include":
-        C.IncludesException.check(*items)
     for item in items:
         if isinstance(item, (list, tuple)):
             yield from aliases_and_colloquialisms(*item, context=context)
@@ -51,6 +47,7 @@ def aliases_and_colloquialisms(*items, context="user"):
 
 
 def split_strings_maybe(*items, context="user"):
+    C.ContextsException.check(context)
     ret = set()
     for item in items:
         if isinstance(item, (list, tuple)):
@@ -63,4 +60,8 @@ def split_strings_maybe(*items, context="user"):
     ret = list(sorted(aliases_and_colloquialisms(*ret, context=context)))
     if None in ret:
         return
+    if context == "status":
+        C.StatusesException.check(*ret)
+    elif context == "include":
+        C.IncludesException.check(*ret)
     return ret

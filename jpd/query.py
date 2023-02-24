@@ -40,7 +40,7 @@ def list_incidents(
     until=None,
     sess=None,
     date_range=None,
-    test=False,
+    dry_run=False,
     include=C.LIST_INCIDENT_INCLUDES,
     **params,
 ):
@@ -76,9 +76,9 @@ def list_incidents(
         params["statuses[]"] = statuses
 
     if include := split_strings_maybe(include, context="include"):
-        params["include[]"] = statuses
+        params["include[]"] = include
 
-    if test:
+    if dry_run:
         return ("/incidents", params)
 
     log.debug('list_incidents -> list_all(%s)', params)

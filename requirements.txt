@@ -1,6 +1,5 @@
 pdpyras
 tabulate
-click
 dateparse
 simplejson
 xdg
