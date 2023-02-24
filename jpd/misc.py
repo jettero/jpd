@@ -5,8 +5,8 @@ import datetime
 import shlex
 import dateparser
 
-from mypd.config import PDC
-import mypd.const as C
+from jpd.config import JPDC
+import jpd.const as C
 
 
 def parse_date(x, in_utc=True, fmt="%Y-%m-%dT%H:%M%Z", utc_to_zulu=True):
@@ -42,10 +42,10 @@ def aliases_and_colloquialisms(*items, context="user"):
                 break
             elif item in C.SELF_AND_TEAM:
                 if context == 'user':
-                    yield PDC.user_id
+                    yield JPDC.user_id
                     continue
                 elif context == 'team':
-                    yield from PDC.team_ids
+                    yield from JPDC.team_ids
                     continue
         yield item
 

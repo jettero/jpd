@@ -7,9 +7,9 @@ import os
 import simplejson as json
 import xdg
 
-log = logging.getLogger('mypd.dq')
+log = logging.getLogger('jpd.dq')
 
-XDG_CACHE_LOCATION = os.path.join(xdg.xdg_cache_home(), 'mypd')
+XDG_CACHE_LOCATION = os.path.join(xdg.xdg_cache_home(), 'jpd')
 KEY_SPLIT = 4
 
 def min_dump(x):

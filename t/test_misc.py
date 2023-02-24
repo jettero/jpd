@@ -2,8 +2,8 @@
 # coding: utf-8
 
 import pytest
-import mypd.misc as m
-import mypd.const as c
+import jpd.misc as m
+import jpd.const as c
 
 def test_parse_date():
     oda = m.parse_date('1 day ago')

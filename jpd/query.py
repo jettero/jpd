@@ -5,25 +5,27 @@ import logging
 
 from pdpyras import APISession as PDSession
 
-from mypd.config import PDC
-from mypd.misc import parse_date, split_strings_maybe
-from mypd.dq import auto_cache
-import mypd.const as C
+from jpd.config import JPDC
+from jpd.misc import parse_date, split_strings_maybe
+from jpd.dq import auto_cache
+import jpd.const as C
 
 SESSION = None
 
-log = logging.getLogger("mypd.query")
-
+log = logging.getLogger("jpd.query")
 
 def get_session():
     global SESSION
 
     if SESSION is None:
-        SESSION = PDSession(PDC.api_key, default_from=PDC.email)
+        SESSION = PDSession(JPDC.api_key, default_from=JPDC.email)
 
     return SESSION
 
-def fetch_incident(id, sess=get_session(), include=C.INCIDENT_INCLUDES):
+def fetch_incident(id, sess=None, include=C.INCIDENT_INCLUDES):
+    if sess is None:
+        sess = get_session()
+
     if include := split_strings_maybe(include, context="include"):
         params["include[]"] = statuses
     # XXX: when did I break this... there's nolonger a res=sess.something() at all
@@ -36,7 +38,7 @@ def list_incidents(
     statuses=None,
     since=None,
     until=None,
-    sess=get_session(),
+    sess=None,
     date_range=None,
     test=False,
     include=C.LIST_INCIDENT_INCLUDES,
@@ -54,6 +56,10 @@ def list_incidents(
     you will only receive incidents with statuses of triggered or acknowledged.
     This is because resolved incidents are not assigned to any user.
     """
+
+    if sess is None:
+        sess = get_session()
+
     if user_ids := split_strings_maybe(user_ids, context="user"):
         params["user_ids[]"] = user_ids
 

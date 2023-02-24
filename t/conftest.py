@@ -2,8 +2,8 @@
 # coding: utf-8
 
 import pytest
-from mypd.config import PDC, get_config
+from jpd.config import JPDC
 
 @pytest.fixture
 def user_config():
-    return PDC
+    return JPDC
