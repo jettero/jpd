@@ -23,12 +23,11 @@ def main(args):
     doc = list_incidents(user_ids=args.user_ids, team_ids=args.team_ids, dry_run=args.dry_run, include=args.include, refresh=args.refresh)
     print(json_format(args, doc))
 
-
 def entry_point(*args):
     parser = argparse.ArgumentParser(  # description='this program',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("-v", "--verbose", action="store_true", help="show various informational things on stderr")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="show various informational things on stderr, more -v, more verbose")
     parser.add_argument("-V", "--version", action="store_true", help="show the version and exit")
     parser.add_argument("-r", "--refresh", action="store_true", help="refresh query by avoiding disk cache")
     parser.add_argument("--show-parsed-args", action="store_true", help="show the parsed args and options and exit")
@@ -89,8 +88,9 @@ def entry_point(*args):
         "--include",
         choices=C.INCLUDES + ("all",),
         nargs="+",
+        metavar='DOCS',
         action="extend",
-        help="include these sub-documents in the replies",
+        help=f"include these sub-documents in the replies, choices: {', '.join(C.INCLUDES)}",
     )
 
     args = parser.parse_args(*args)
