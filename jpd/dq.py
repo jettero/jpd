@@ -3,6 +3,7 @@
 
 import logging
 import hashlib
+import datetime
 import os
 import simplejson as json
 import xdg
@@ -32,14 +33,25 @@ def make_key(name, *a, **kw):
 
     return s.hexdigest()
 
-def auto_cache(f, *a, cache_group=None, cache_dir=XDG_CACHE_LOCATION, **kw):
+def clean_cache(cache_dir=XDG_CACHE_LOCATION, cache_group=None, max_age=300):
+    now = datetime.datetime.now().timestamp()
+    top = cache_dir
+    if cache_group is not None:
+        top = os.path.join(top, cache_group)
+    for path, _, files in os.walk(top):
+        for file in files:
+            fpath = os.path.join(path, file)
+            δt = int(now - os.stat(fpath).st_mtime)
+            print(f'fpath={fpath} δt={δt} {"OLD" if δt > max_age else "OK"}')
+
+def auto_cache(f, *a, cache_dir=XDG_CACHE_LOCATION, cache_group=None, refresh=False, **kw):
     if cache_group is None:
         cache_group = f.__name__
     k = make_key(cache_group, *a, **kw) # cache (k)ey
     d = os.path.join(cache_dir, cache_group, k[:KEY_SPLIT]) # (d)ir of cache file
     p = os.path.join(d, k[KEY_SPLIT:] + '.json') # (p)ath of cache file
     s = p[len(cache_dir)+1:] # (s)hort version of the file (sans cache dir)
-    if os.path.isfile(p):
+    if os.path.isfile(p) and not refresh:
         with open(p, 'r') as fh:
             log.debug('returning cache entry %s', s)
             return json.load(fh)
