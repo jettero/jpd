@@ -2,12 +2,14 @@
 # coding: utf-8
 
 import sys
+import argparse
+import subprocess
+import logging
+import simplejson as json
+
 import jpd.query
 import jpd.const
 import jpd.logging
-import argparse
-import logging
-import simplejson as json
 
 
 def json_format(args, doc):
@@ -20,23 +22,25 @@ def json_format(args, doc):
         params["separators"] = ",:"
     return json.dumps(doc, **params)
 
+
+def print_or_whatever(args, doc):
+    print(json_format(args, doc))
+
+
 def fetch_incident(args):
-    print(
-        json_format( args, jpd.query.fetch_incident(args.incident_id) ) )
+    print_or_whatever(args, jpd.query.fetch_incident(args.incident_id))
 
 
 def list_incidents(args):
-    print(
-        json_format(
-            args,
-            jpd.query.list_incidents(
-                user_ids=args.user_ids,
-                team_ids=args.team_ids,
-                dry_run=args.dry_run,
-                include=args.include,
-                refresh=args.refresh,
-            ),
-        )
+    print_or_whatever(
+        args,
+        jpd.query.list_incidents(
+            user_ids=args.user_ids,
+            team_ids=args.team_ids,
+            dry_run=args.dry_run,
+            include=args.include,
+            refresh=args.refresh,
+        ),
     )
 
 
@@ -95,13 +99,14 @@ def arguments_parser():
     main_parser.add_argument("-V", "--version", action="store_true", help="show the version and exit")
     main_parser.add_argument("-r", "--refresh", action="store_true", help="refresh query by avoiding disk cache")
     main_parser.add_argument(
-        "-S", "--show-parsed-args", action="store_true", help="show the parsed args and options and exit"
-    )
-    main_parser.add_argument(
         "-d",
         "--dry-run",
         action="store_true",
         help="invoke the query operation but show the request args rather than executing over HTTP",
+    )
+
+    main_parser.add_argument(
+        "-S", "--show-parsed-args", action="store_true", help="show the parsed args and options and exit"
     )
 
     main_parser.add_argument(
@@ -151,8 +156,12 @@ def arguments_parser():
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENT_INCLUDES)}",
     )
 
-    cmd_parsers.append(subs.add_parser("fetch-incident", aliases=["view", "fetch", 'v', 'f', "l"], help="fetch details about an incident"))
+    cmd_parsers.append(
+        subs.add_parser(
+            "fetch-incident", aliases=["view", "fetch", "v", "f", "l"], help="fetch details about an incident"
+        )
+    )
     cmd_parsers[-1].set_defaults(func=fetch_incident)
-    cmd_parsers[-1].add_argument('incident_id', metavar='incident-id', type=str)
+    cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
 
     return main_parser, *cmd_parsers
