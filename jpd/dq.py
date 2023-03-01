@@ -55,13 +55,15 @@ def clean_cache(cache_dir=XDG_CACHE_LOCATION, cache_group=None, max_age=300):
                     log.debug("    unlink(fpath=%s)", fpath)
                     count -= 1
                 except (OSError, PermissionError) as e:
-                    log.debug("    unlink(fpath=%s): %s", fpath, e)
+                    log.debug("    unlink(fpath=%s):", fpath)
+                    log.debug("      %s", e)
         if count < 1:
             try:
                 os.removedirs(path)
                 log.debug("    removedirs(path=%s)", path)
             except (OSError, PermissionError) as e:
-                log.debug("    removedirs(path=%s): %s", path, e)
+                log.debug("    removedirs(path=%s):", path)
+                log.debug("      %s", e)
 
 def auto_cache(f, *a, cache_dir=XDG_CACHE_LOCATION, cache_group=None, refresh=False, **kw):
     # we could optionally clean the cache one query at a time...
