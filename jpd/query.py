@@ -22,13 +22,14 @@ def get_session():
 
     return SESSION
 
-def fetch_incident(id, sess=None, include=C.INCIDENT_INCLUDES):
+def fetch_incident(id, sess=None, include=C.INCIDENT_INCLUDES, **params):
     if sess is None:
         sess = get_session()
 
     if include := split_strings_maybe(include, context="include"):
-        params["include[]"] = statuses
-    # XXX: when did I break this... there's nolonger a res=sess.something() at all
+        params["include[]"] = include
+
+    res = sess.get(f'/incidents/{id}')
     if res.ok:
         return res.json()['incident']
 

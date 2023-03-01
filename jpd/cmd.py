@@ -20,6 +20,10 @@ def json_format(args, doc):
         params["separators"] = ",:"
     return json.dumps(doc, **params)
 
+def fetch_incident(args):
+    print(
+        json_format( args, jpd.query.fetch_incident(args.incident_id) ) )
+
 
 def list_incidents(args):
     print(
@@ -109,10 +113,13 @@ def arguments_parser():
     )
 
     subs = main_parser.add_subparsers(required=True, title="Action Commands", metavar="CMD")
-    list_parser = subs.add_parser("list-incidents", aliases=["list", "li", "l"], help='list incidents (aka "PDs")')
-    list_parser.set_defaults(func=list_incidents)
+    cmd_parsers = list()
+    cmd_parsers.append(
+        subs.add_parser("list-incidents", aliases=["list", "li", "l"], help='list incidents (aka "PDs")')
+    )
+    cmd_parsers[-1].set_defaults(func=list_incidents)
 
-    list_parser.add_argument(
+    cmd_parsers[-1].add_argument(
         "-u",
         "--user-ids",
         metavar="user-id",
@@ -124,7 +131,7 @@ def arguments_parser():
         " - note that -u with no args will clear the default",
     )
 
-    list_parser.add_argument(
+    cmd_parsers[-1].add_argument(
         "-l",
         "--team-ids",
         metavar="team-id",
@@ -134,7 +141,7 @@ def arguments_parser():
         help="when listing incidents, show only incidents related to these teams",
     )
 
-    list_parser.add_argument(
+    cmd_parsers[-1].add_argument(
         "-i",
         "--include",
         choices=jpd.const.LIST_INCIDENT_INCLUDES + ("all",),
@@ -144,4 +151,8 @@ def arguments_parser():
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENT_INCLUDES)}",
     )
 
-    return main_parser, list_parser
+    cmd_parsers.append(subs.add_parser("fetch-incident", aliases=["view", "fetch", 'v', 'f', "l"], help="fetch details about an incident"))
+    cmd_parsers[-1].set_defaults(func=fetch_incident)
+    cmd_parsers[-1].add_argument('incident_id', metavar='incident-id', type=str)
+
+    return main_parser, *cmd_parsers
