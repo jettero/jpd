@@ -65,7 +65,7 @@ def clean_cache(cache_dir=XDG_CACHE_LOCATION, cache_group=None, max_age=300):
                 log.debug("    removedirs(path=%s):", path)
                 log.debug("      %s", e)
 
-def auto_cache(f, *a, cache_dir=XDG_CACHE_LOCATION, cache_group=None, refresh=False, **kw):
+def auto_cache(f, *a, cache_dir=XDG_CACHE_LOCATION, cache_group=None, refresh=False, auto_pick=None, **kw):
     # we could optionally clean the cache one query at a time...
     #   clean_cache(cache_dir=cache_dir, cache_group=cache_group)
     clean_cache(cache_dir=cache_dir) # but why??
@@ -84,5 +84,7 @@ def auto_cache(f, *a, cache_dir=XDG_CACHE_LOCATION, cache_group=None, refresh=Fa
     os.makedirs(d, mode=0o0700, exist_ok=True)
     with open(p, "w") as fh:
         log.debug("returning cache entry %s", s)
+        if auto_pick is not None and r:
+            r = r.get(auto_pick)
         json.dump(r, fh, sort_keys=True, indent=2)
     return r

@@ -14,6 +14,7 @@ SESSION = None
 
 log = logging.getLogger("jpd.query")
 
+
 def get_session():
     global SESSION
 
@@ -22,16 +23,26 @@ def get_session():
 
     return SESSION
 
-def fetch_incident(id, sess=None, include=C.INCIDENT_INCLUDES, **params):
+
+def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
     if sess is None:
         sess = get_session()
 
     if include := split_strings_maybe(include, context="include"):
         params["include[]"] = include
 
-    res = sess.get(f'/incidents/{id}')
-    if res.ok:
-        return res.json()['incident']
+    if dry_run:
+        return ("/incidents", params)
+
+    return auto_cache(
+        sess.jget,
+        f"incidents/{incident_id}",
+        params=params,
+        cache_group="fetch_incident",
+        refresh=refresh,
+        auto_pick="incident",
+    )
+
 
 def list_incidents(
     user_ids="me",
@@ -39,10 +50,10 @@ def list_incidents(
     statuses=None,
     since=None,
     until=None,
-    sess=None,
     date_range=None,
-    dry_run=False,
     include=C.LIST_INCIDENT_INCLUDES,
+    sess=None,
+    dry_run=False,
     refresh=False,
     **params,
 ):
@@ -83,6 +94,6 @@ def list_incidents(
     if dry_run:
         return ("/incidents", params)
 
-    log.debug('list_incidents -> list_all(%s)', params)
+    log.debug("list_incidents -> list_all(%s)", params)
 
-    return auto_cache(sess.list_all, 'incidents', params=params, cache_group='list_incidents', refresh=refresh)
+    return auto_cache(sess.list_all, "incidents", params=params, cache_group="list_incidents", refresh=refresh)
