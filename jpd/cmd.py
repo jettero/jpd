@@ -165,20 +165,20 @@ def arguments_parser():
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENTS_INCLUDES)}",
     )
     cmd_parsers[-1].add_argument(
-        "-s",
+        "-a", "-s",
         "--since",
         "--after",
         type=str,
-        help="match incidents on or after this date (examples: yesterday, 72 hours ago, 2023-01-01)",
+        help="match incidents on or after this date (examples: 10am, yesterday, 72 hours ago, 2023-01-01)",
     )
     cmd_parsers[-1].add_argument(
-        "-u",
+        "-b",
         "--until",
         "--before",
         type=str,
-        help="match incidents on or before this date (examples: yesterday, 72 hours ago, 2023-01-01)",
+        help="match incidents on or before this date (examples: 10am, yesterday, 72 hours ago, 2023-01-01)",
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids="", team_ids="", include=""))
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids="", team_ids="", since='', until='', include=""))
 
     ############ FETCH INCIDENT
     cmd_parsers.append(

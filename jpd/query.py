@@ -3,7 +3,7 @@
 
 import logging
 
-from pdpyras import APISession as PDSession
+from pdpyras import APISession as PDSession, PDClientError
 
 from jpd.config import JPDC
 from jpd.misc import parse_date, split_strings_maybe
@@ -38,8 +38,16 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
 
     log.debug("list_alerts -> list_all(%s, %s)", query_path, params)
 
-    return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
-
+    try:
+        return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
+    except PDClientError as e:
+        if e.response.status_code == 403:
+            # e.response.json()['error'] has further info like "you can't see
+            # this" or whatever other useless shit. I just don't think it's
+            # worth bothering with
+            log.info("ignoring %d %s for %s", e.response.status_code, e.response.reason, query_path)
+            return list()
+        raise
 
 def fetch_incident(
     incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, with_alerts=True, **params
@@ -55,14 +63,20 @@ def fetch_incident(
     if dry_run:
         return (query_path, params)
 
-    incident = auto_cache(
-        sess.jget,
-        query_path,
-        params=params,
-        cache_group="fetch_incident",
-        refresh=refresh,
-        auto_pick="incident",
-    )
+    try:
+        incident = auto_cache(
+            sess.jget,
+            query_path,
+            params=params,
+            cache_group="fetch_incident",
+            refresh=refresh,
+            auto_pick="incident",
+        )
+    except PDClientError as e:
+        if e.status_code == 403:
+            log.info("ignoring %d %s for %s", e.response.status_code, e.response.reason, query_path)
+            return dict()
+        raise
 
     if with_alerts:
         incident["alerts"] = list_alerts(
@@ -80,6 +94,7 @@ def list_incidents(
     until=None,
     include=C.LIST_INCIDENTS_INCLUDES,
     sess=None,
+    with_alerts=True,
     dry_run=False,
     refresh=False,
     **params,
@@ -125,4 +140,8 @@ def list_incidents(
 
     log.debug("list_incidents -> list_all(%s, %s)", query_path, params)
 
-    return auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)
+    incidents = auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)
+    if with_alerts:
+        for incident in incidents:
+            incident['alerts'] = list_alerts(incident['id'])
+    return incidents
