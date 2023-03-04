@@ -183,7 +183,7 @@ def arguments_parser():
     ############ FETCH INCIDENT
     cmd_parsers.append(
         subs.add_parser(
-            "fetch-incident", aliases=["view", "fetch", "v", "f", "l"], help="fetch details about an incident"
+            "fetch-incident", aliases=["view", "fetch", "v", "f"], help="fetch details about an incident"
         )
     )
     cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
