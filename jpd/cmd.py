@@ -13,6 +13,7 @@ import jpd.logging
 
 # log = logging.getLogger("jpd.cmd")
 
+
 def json_format(args, doc):
     params = dict(sort_keys=True)
     if args.json_indent_level > 0:
@@ -26,6 +27,7 @@ def json_format(args, doc):
 
 def print_or_whatever(args, doc):
     print(json_format(args, doc))
+
 
 def _MAP_QUERY(qfunc, *arg_names, **kwarg_mapping):
     """
@@ -41,13 +43,16 @@ def _MAP_QUERY(qfunc, *arg_names, **kwarg_mapping):
         f = _MAP_QUERY(jpd.query.fetch_incident, 'incident_id', include='')
         # NOTE: to avoid user_ids='user_ids', you can write user_ids='' or user_ids=0 for short
     """
+
     def inner(args):
-        a = tuple( getattr(args, x) for x in arg_names )
-        kw = { k:getattr(args, v or k) for k,v in kwarg_mapping.items() }
-        kw['dry_run'] = args.dry_run
-        kw['refresh'] = args.refresh
+        a = tuple(getattr(args, x) for x in arg_names)
+        kw = {k: getattr(args, v or k) for k, v in kwarg_mapping.items()}
+        kw["dry_run"] = args.dry_run
+        kw["refresh"] = args.refresh
         print_or_whatever(args, qfunc(*a, **kw))
+
     return inner
+
 
 class MyReplaceDefaultExtend(argparse._ExtendAction):
     def __init__(self, *a, **kw):
@@ -159,7 +164,7 @@ def arguments_parser():
         action="extend",
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENTS_INCLUDES)}",
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids='', team_ids='', include=''))
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids="", team_ids="", include=""))
 
     ############ FETCH INCIDENT
     cmd_parsers.append(
@@ -169,6 +174,12 @@ def arguments_parser():
     )
     cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
     cmd_parsers[-1].add_argument(
+        "--without-alerts",
+        dest="with_alerts",
+        action="store_false",
+        help="by default alerts are listed into the output",
+    )
+    cmd_parsers[-1].add_argument(
         "-i",
         "--include",
         choices=jpd.const.INCIDENT_INCLUDES + ("all",),
@@ -177,12 +188,14 @@ def arguments_parser():
         action="extend",
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.INCIDENT_INCLUDES)}",
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.fetch_incident, 'incident_id', include=''))
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.fetch_incident, "incident_id", with_alerts='', include=""))
 
     ############ LIST ALERTS
     cmd_parsers.append(
         subs.add_parser(
-            "list-alerts", aliases=['lia', 'la', "alerts", 'a', "fetch-alerts", "fa"], help="list the alerts for an incident"
+            "list-alerts",
+            aliases=["lia", "la", "alerts", "a", "fetch-alerts", "fa"],
+            help="list the alerts for an incident",
         )
     )
     cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
@@ -195,6 +208,6 @@ def arguments_parser():
         action="extend",
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_ALERTS_INCLUDES)}",
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_alerts, 'incident_id', include=''))
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_alerts, "incident_id", include=""))
 
     return main_parser, *cmd_parsers
