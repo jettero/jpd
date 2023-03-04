@@ -78,7 +78,6 @@ def list_incidents(
     statuses=None,
     since=None,
     until=None,
-    date_range=None,
     include=C.LIST_INCIDENTS_INCLUDES,
     sess=None,
     dry_run=False,
