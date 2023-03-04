@@ -1,5 +1,7 @@
 # vi:ft=python:
 
+import jpd.const as C
+import jpd.config as c
 import jpd.query as q
 
-sess = q.get_session()
+s = q.get_session()

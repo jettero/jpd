@@ -23,6 +23,7 @@ def get_session():
 
     return SESSION
 
+
 def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
     query_path = f"incidents/{incident_id}/alerts"
 
@@ -39,7 +40,10 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
 
     return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
 
-def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
+
+def fetch_incident(
+    incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, with_alerts=True, **params
+):
     query_path = f"incidents/{incident_id}"
 
     if sess is None:
@@ -51,7 +55,7 @@ def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=
     if dry_run:
         return (query_path, params)
 
-    return auto_cache(
+    incident = auto_cache(
         sess.jget,
         query_path,
         params=params,
@@ -59,6 +63,14 @@ def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=
         refresh=refresh,
         auto_pick="incident",
     )
+
+    if with_alerts:
+        incident["alerts"] = list_alerts(
+            incident_id, include=[ x for x in C.LIST_ALERTS_INCLUDES if x not in "incidents" ], dry_run=dry_run, refresh=refresh, sess=sess
+        )
+
+    return incident
+
 
 def list_incidents(
     user_ids="me",
@@ -86,7 +98,7 @@ def list_incidents(
     This is because resolved incidents are not assigned to any user.
     """
 
-    query_path = 'incidents'
+    query_path = "incidents"
 
     if sess is None:
         sess = get_session()
