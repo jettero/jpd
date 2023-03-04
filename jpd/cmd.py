@@ -122,13 +122,14 @@ def arguments_parser():
         help="indent this many spaces in the output json doc, 0 for minified json",
     )
 
+    ############ SETUP CMDS
     subs = main_parser.add_subparsers(required=True, title="Action Commands", metavar="CMD")
     cmd_parsers = list()
+
+    ############ LIST INCIDENTS
     cmd_parsers.append(
         subs.add_parser("list-incidents", aliases=["list", "li", "l"], help='list incidents (aka "PDs")')
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids='', team_ids='', include=''))
-
     cmd_parsers[-1].add_argument(
         "-u",
         "--user-ids",
@@ -140,7 +141,6 @@ def arguments_parser():
         help="when listing incidents, only show incidents assigned to these users"
         " - note that -u with no args will clear the default",
     )
-
     cmd_parsers[-1].add_argument(
         "-l",
         "--team-ids",
@@ -150,17 +150,18 @@ def arguments_parser():
         action="extend",
         help="when listing incidents, show only incidents related to these teams",
     )
-
     cmd_parsers[-1].add_argument(
         "-i",
         "--include",
-        choices=jpd.const.LIST_INCIDENT_INCLUDES + ("all",),
+        choices=jpd.const.LIST_INCIDENTS_INCLUDES + ("all",),
         nargs="+",
         metavar="DOCS",
         action="extend",
-        help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENT_INCLUDES)}",
+        help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENTS_INCLUDES)}",
     )
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids='', team_ids='', include=''))
 
+    ############ FETCH INCIDENT
     cmd_parsers.append(
         subs.add_parser(
             "fetch-incident", aliases=["view", "fetch", "v", "f", "l"], help="fetch details about an incident"
@@ -177,5 +178,23 @@ def arguments_parser():
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.INCIDENT_INCLUDES)}",
     )
     cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.fetch_incident, 'incident_id', include=''))
+
+    ############ LIST ALERTS
+    cmd_parsers.append(
+        subs.add_parser(
+            "list-alerts", aliases=['lia', 'la', "alerts", 'a', "fetch-alerts", "fa"], help="list the alerts for an incident"
+        )
+    )
+    cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
+    cmd_parsers[-1].add_argument(
+        "-i",
+        "--include",
+        choices=jpd.const.LIST_ALERTS_INCLUDES + ("all",),
+        nargs="+",
+        metavar="DOCS",
+        action="extend",
+        help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_ALERTS_INCLUDES)}",
+    )
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_alerts, 'incident_id', include=''))
 
     return main_parser, *cmd_parsers
