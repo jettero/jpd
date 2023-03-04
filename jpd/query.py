@@ -23,8 +23,9 @@ def get_session():
 
     return SESSION
 
+def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
+    query_path = f"incidents/{incident_id}/alerts"
 
-def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
     if sess is None:
         sess = get_session()
 
@@ -32,17 +33,32 @@ def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=
         params["include[]"] = include
 
     if dry_run:
-        return ("/incidents", params)
+        return (query_path, params)
+
+    log.debug("list_alerts -> list_all(%s, %s)", query_path, params)
+
+    return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
+
+def fetch_incident(incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
+    query_path = f"incidents/{incident_id}"
+
+    if sess is None:
+        sess = get_session()
+
+    if include := split_strings_maybe(include, context="include"):
+        params["include[]"] = include
+
+    if dry_run:
+        return (query_path, params)
 
     return auto_cache(
         sess.jget,
-        f"incidents/{incident_id}",
+        query_path,
         params=params,
         cache_group="fetch_incident",
         refresh=refresh,
         auto_pick="incident",
     )
-
 
 def list_incidents(
     user_ids="me",
@@ -51,7 +67,7 @@ def list_incidents(
     since=None,
     until=None,
     date_range=None,
-    include=C.LIST_INCIDENT_INCLUDES,
+    include=C.LIST_INCIDENTS_INCLUDES,
     sess=None,
     dry_run=False,
     refresh=False,
@@ -69,6 +85,8 @@ def list_incidents(
     you will only receive incidents with statuses of triggered or acknowledged.
     This is because resolved incidents are not assigned to any user.
     """
+
+    query_path = 'incidents'
 
     if sess is None:
         sess = get_session()
@@ -92,8 +110,8 @@ def list_incidents(
         params["include[]"] = include
 
     if dry_run:
-        return ("/incidents", params)
+        return (query_path, params)
 
-    log.debug("list_incidents -> list_all(%s)", params)
+    log.debug("list_incidents -> list_all(%s, %s)", query_path, params)
 
-    return auto_cache(sess.list_all, "incidents", params=params, cache_group="list_incidents", refresh=refresh)
+    return auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)

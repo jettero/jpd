@@ -3,7 +3,9 @@
 
 INCIDENT_INCLUDES = ("field_values",)
 
-LIST_INCIDENT_INCLUDES = (
+LIST_ALERTS_INCLUDES = ("services", "first_trigger_log_entries", "incidents")
+
+LIST_INCIDENTS_INCLUDES = (
     "users",
     "services",
     "first_trigger_log_entries",
@@ -16,7 +18,7 @@ LIST_INCIDENT_INCLUDES = (
 )
 
 # TODO: I have no interfaces to deal with the fact that includes differ by query type
-INCLUDES = INCIDENT_INCLUDES + LIST_INCIDENT_INCLUDES
+INCLUDES = INCIDENT_INCLUDES + LIST_INCIDENTS_INCLUDES + LIST_ALERTS_INCLUDES
 
 CONTEXTS = ("user", "team", "status", "include")
 STATUSES = ("triggered", "resolved", "acknowledged")

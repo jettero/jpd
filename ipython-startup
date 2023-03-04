@@ -1,0 +1,5 @@
+# vi:ft=python:
+
+import jpd.query as q
+
+sess = q.get_session()
