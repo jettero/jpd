@@ -147,7 +147,7 @@ def arguments_parser():
         " - note that -u with no args will clear the default",
     )
     cmd_parsers[-1].add_argument(
-        "-l",
+        "-t",
         "--team-ids",
         metavar="team-id",
         type=str,
