@@ -17,18 +17,17 @@ LIST_INCIDENTS_INCLUDES = (
     "conference_bridge",
 )
 
-# TODO: I have no interfaces to deal with the fact that includes differ by query type
 INCLUDES = INCIDENT_INCLUDES + LIST_INCIDENTS_INCLUDES + LIST_ALERTS_INCLUDES
 
-CONTEXTS = ("user", "team", "status", "include")
+CONTEXTS = ["user", "team"]
+STXETNOC = dict()
 STATUSES = ("triggered", "resolved", "acknowledged")
 
 SELF_AND_TEAM = ("me", "mine", "us", "ours")
 
-
-class StatusesException(Exception):
-    SET_MEMBERS = STATUSES
-    IMA = "status"
+class JPDContextException(Exception):
+    SET_MEMBERS = tuple()
+    IMA = None
 
     def __init__(self, moar=None):
         if moar:
@@ -37,7 +36,9 @@ class StatusesException(Exception):
             super().__init__(f'{self.IMA} must be in ({", ".join(self.SET_MEMBERS)})')
 
     @classmethod
-    def check(cls, *x, fail_raise=True):
+    def check(cls, *x, fail_raise=True, context=None):
+        if context is not None and context in STXETNOC:
+            cls = STXETNOC[context]
         not_in = [y for y in x if y not in cls.SET_MEMBERS]
         if not_in:
             if fail_raise:
@@ -45,12 +46,37 @@ class StatusesException(Exception):
             return False
         return True
 
+class StatusesException(JPDContextException):
+    SET_MEMBERS = STATUSES
+    IMA = "status"
 
-class ContextsException(StatusesException):
+class ContextsException(JPDContextException):
     SET_MEMBERS = CONTEXTS
     IMA = "context"
 
-
-class IncludesException(StatusesException):
+class IncludesException(JPDContextException):
     SET_MEMBERS = INCLUDES
     IMA = "include"
+
+class IncidentIncludesException(IncludesException):
+    SET_MEMBERS = INCIDENT_INCLUDES
+    IMA = "incident-include"
+
+class ListIncidentIncludesException(IncludesException):
+    SET_MEMBERS = INCIDENT_INCLUDES
+    IMA = "list-incident-include"
+
+# meta class bullshit
+
+for item in dir():
+    try:
+        if item.endswith('Exception'):
+            item = globals()[item]
+            if issubclass(item, JPDContextException):
+                if item.IMA is not None and item.IMA not in CONTEXTS:
+                    CONTEXTS.append(item.IMA)
+                    STXETNOC[item.IMA] = item
+    except TypeError:
+        pass
+
+CONTEXTS = tuple(CONTEXTS)
