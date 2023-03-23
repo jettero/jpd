@@ -61,7 +61,7 @@ def split_strings_maybe(*items, context="user"):
     if None in ret:
         return
     if context == "status":
-        C.StatusesException.check(*ret)
+        C.StatusesException.check(*ret, context=context)
     elif context == "include":
-        C.IncludesException.check(*ret)
+        C.IncludesException.check(*ret, context=context)
     return ret
