@@ -3,3 +3,4 @@ tabulate
 dateparse
 simplejson
 xdg
+bs4
