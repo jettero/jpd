@@ -165,7 +165,14 @@ def arguments_parser():
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENTS_INCLUDES)}",
     )
     cmd_parsers[-1].add_argument(
-        "-a", "-s",
+        "-A",
+        "--with-alerts",
+        action="store_true",
+        help=f"by default, the alerts aren't fetched along with the incident, but they often contain useful information",
+    )
+    cmd_parsers[-1].add_argument(
+        "-a",
+        "-s",
         "--since",
         "--after",
         type=str,
@@ -178,13 +185,15 @@ def arguments_parser():
         type=str,
         help="match incidents on or before this date (examples: 10am, yesterday, 72 hours ago, 2023-01-01)",
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.list_incidents, user_ids="", team_ids="", since='', until='', include=""))
+    cmd_parsers[-1].set_defaults(
+        func=_MAP_QUERY(
+            jpd.query.list_incidents, user_ids="", team_ids="", since="", until="", with_alerts="", include=""
+        )
+    )
 
     ############ FETCH INCIDENT
     cmd_parsers.append(
-        subs.add_parser(
-            "fetch-incident", aliases=["view", "fetch", "v", "f"], help="fetch details about an incident"
-        )
+        subs.add_parser("fetch-incident", aliases=["view", "fetch", "v", "f"], help="fetch details about an incident")
     )
     cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
     cmd_parsers[-1].add_argument(
@@ -202,7 +211,7 @@ def arguments_parser():
         action="extend",
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.INCIDENT_INCLUDES)}",
     )
-    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.fetch_incident, "incident_id", with_alerts='', include=""))
+    cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.fetch_incident, "incident_id", with_alerts="", include=""))
 
     ############ LIST ALERTS
     cmd_parsers.append(
