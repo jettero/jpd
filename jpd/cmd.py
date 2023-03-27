@@ -39,6 +39,27 @@ def textify(x, fingerprint_size=256):
     head = x[:fingerprint_size]
     if '<!DOCTYPE html' in head:
         return re.sub(r'(?:\s*\x0d?\x0a\s*){2,}', '\n', BeautifulSoup(x, 'html.parser').get_text().strip())
+        # TODO:
+        #
+        # We're really talking about something reparsable here...
+        #
+        #   "channel": {
+        #     "body": "<!DOCTYPE html .... <html> blah blah blah",
+        #     "body_content_type": "text/html",
+        #     "details": {},
+        #     "from": "email@address",
+        #     "html_url": "/incidents/QQQXXXQQQXXXQQ/log_entries/XXX1212XXX1212XXXXX121212X/show_html_details",
+        #     "raw_url": "/incidents/QQQXXXQQQXXXQQ/log_entries/XXX1212XXX1212XXXXX121212X/show_raw_details",
+        #     "subject": "email subject line",
+        #     "summary": "summary that seems to normally be the subject line",
+        #     "to": "email@addresses"
+        #     "type": "email"
+        #   },
+        #
+        # So, theoretically, we, we could pull that
+        # /incidents/QQQXXXQQQXXXQQ/log_entries/XXX1212XXX1212XXXXX121212X/show_raw_details
+        # document, find the text/plain section, grok the base64, and return
+        # the actual text section of the notification email.
     return x
 
 def scan_for_html(x):
