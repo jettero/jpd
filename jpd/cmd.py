@@ -13,6 +13,14 @@ import jpd.logging
 
 # log = logging.getLogger("jpd.cmd")
 
+HAS_BSOUP = False
+try:
+    from bs4 import BeautifulSoup
+
+    HAS_BSOUP = True
+except:
+    pass
+
 
 def json_format(args, doc):
     params = dict(sort_keys=True)
@@ -53,6 +61,9 @@ def _MAP_QUERY(qfunc, *arg_names, **kwarg_mapping):
 
     return inner
 
+class Bs4Error(argparse._StoreTrueAction):
+    def __call__(self, parser, namespace, *a, **kw):
+        raise Exception("beautifulsoup4 must be installed to textify xml/html items")
 
 class MyReplaceDefaultExtend(argparse._ExtendAction):
     def __init__(self, *a, **kw):
@@ -125,6 +136,15 @@ def arguments_parser():
         type=int,
         default=2,
         help="indent this many spaces in the output json doc, 0 for minified json",
+    )
+
+    main_parser.add_argument(
+        "-T",
+        "--textify",
+        "--textify-html",
+        "--textify-xml",
+        action="store_true" if HAS_BSOUP else Bs4Error,
+        help="try to textify any xml or html documents" if HAS_BSOUP else argparse.SUPPRESS,
     )
 
     ############ SETUP CMDS
