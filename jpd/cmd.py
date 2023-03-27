@@ -2,6 +2,7 @@
 # coding: utf-8
 
 import sys
+import re
 import argparse
 import subprocess
 import logging
@@ -32,8 +33,26 @@ def json_format(args, doc):
         params["separators"] = ",:"
     return json.dumps(doc, **params)
 
+def textify(x, fingerprint_size=256):
+    # e.g.:
+    # "body": "\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n    <head>\n
+    head = x[:fingerprint_size]
+    if '<!DOCTYPE html' in head:
+        return re.sub(r'(?:\s*\x0d?\x0a\s*){2,}', '\n', BeautifulSoup(x, 'html.parser').get_text().strip())
+    return x
+
+def scan_for_html(x):
+    if isinstance(x, str):
+        return textify(x)
+    if isinstance(x, (list,tuple)):
+        return [ scan_for_html(y) for y in x ]
+    if isinstance(x, dict):
+        return { k:scan_for_html(v) for k,v in x.items() }
+    return x
 
 def print_or_whatever(args, doc):
+    if args.textify:
+        doc = scan_for_html(doc)
     print(json_format(args, doc))
 
 
