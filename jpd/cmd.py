@@ -33,12 +33,13 @@ def json_format(args, doc):
         params["separators"] = ",:"
     return json.dumps(doc, **params)
 
+
 def textify(x, fingerprint_size=256):
     # e.g.:
     # "body": "\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n    <head>\n
     head = x[:fingerprint_size]
-    if '<!DOCTYPE html' in head:
-        return re.sub(r'(?:\s*\x0d?\x0a\s*){2,}', '\n', BeautifulSoup(x, 'html.parser').get_text().strip())
+    if "<!DOCTYPE html" in head:
+        return re.sub(r"(?:\s*\x0d?\x0a\s*){2,}", "\n", BeautifulSoup(x, "html.parser").get_text().strip())
         # TODO:
         #
         # We're really talking about something reparsable here...
@@ -62,14 +63,16 @@ def textify(x, fingerprint_size=256):
         # the actual text section of the notification email.
     return x
 
+
 def scan_for_html(x):
     if isinstance(x, str):
         return textify(x)
-    if isinstance(x, (list,tuple)):
-        return [ scan_for_html(y) for y in x ]
+    if isinstance(x, (list, tuple)):
+        return [scan_for_html(y) for y in x]
     if isinstance(x, dict):
-        return { k:scan_for_html(v) for k,v in x.items() }
+        return {k: scan_for_html(v) for k, v in x.items()}
     return x
+
 
 def print_or_whatever(args, doc):
     if args.textify:
@@ -101,9 +104,11 @@ def _MAP_QUERY(qfunc, *arg_names, **kwarg_mapping):
 
     return inner
 
+
 class Bs4Error(argparse._StoreTrueAction):
     def __call__(self, parser, namespace, *a, **kw):
         raise Exception("beautifulsoup4 must be installed to textify xml/html items")
+
 
 class MyReplaceDefaultExtend(argparse._ExtendAction):
     def __init__(self, *a, **kw):
@@ -225,10 +230,10 @@ def arguments_parser():
         help=f"include these sub-documents in the replies, choices: {', '.join(jpd.const.LIST_INCIDENTS_INCLUDES)}",
     )
     cmd_parsers[-1].add_argument(
-        "-A",
-        "--with-alerts",
-        action="store_true",
-        help=f"by default, the alerts aren't fetched along with the incident, but they often contain useful information",
+        "--without-alerts",
+        dest="with_alerts",
+        action="store_false",
+        help=f"by default, incidents are fetched with the their alerts, but this involves an extra API query for each incident.",
     )
     cmd_parsers[-1].add_argument(
         "-a",
@@ -253,14 +258,14 @@ def arguments_parser():
 
     ############ FETCH INCIDENT
     cmd_parsers.append(
-        subs.add_parser("fetch-incident", aliases=["view", "fetch", "v", "f"], help="fetch details about an incident")
+        subs.add_parser("fetch-incident", aliases=["view", "fetch", "fetch-alert", "v", "f"], help="fetch details about an incident")
     )
     cmd_parsers[-1].add_argument("incident_id", metavar="incident-id", type=str)
     cmd_parsers[-1].add_argument(
         "--without-alerts",
         dest="with_alerts",
         action="store_false",
-        help="by default alerts are listed into the output",
+        help=f"by default, alerts are fetched with the incident, but this involves an extra API query.",
     )
     cmd_parsers[-1].add_argument(
         "-i",
