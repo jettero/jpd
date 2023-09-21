@@ -5,5 +5,5 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 write_to = "jpd/version.py"
 
-[tool.poetry.scripts]
+[project.scripts]
 json-pd = "jpd.cmd:entry_point"
