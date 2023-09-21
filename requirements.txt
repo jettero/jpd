@@ -1,6 +1,6 @@
 pdpyras
 tabulate
-dateparse
+dateparser
 simplejson
 xdg
 bs4
