@@ -5,3 +5,4 @@ __pycache__
 file*
 /*.egg-info
 /jpd/version.py
+/build
