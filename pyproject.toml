@@ -5,5 +5,16 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 write_to = "jpd/version.py"
 
+[project]
+name = "jpd"
+version = "1.2.3"
+authors = [{name="Paul Miller", email="paul@merb.net" }]
+description = "I'm just trying to get better at the PagerDuty API by building this little search tool... "
+readme = "README.md"
+requires-python = ">=3.8"
+
 [project.scripts]
-json-pd = "jpd.cmd:entry_point"
+jpd = "jpd.cmd:entry_point"
+
+[project.urls]
+"Github" = "https://github.com/jettero/jpd.git"
