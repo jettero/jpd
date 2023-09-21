@@ -3,3 +3,5 @@ __pycache__
 *.json
 *.js
 file*
+/*.egg-info
+/jpd/version.py
