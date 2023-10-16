@@ -3,7 +3,7 @@ default_stages:
 fail_fast: true
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v2.5.0
+  rev: v4.5.0
   hooks:
   - id: check-yaml
     exclude: 'old/'
@@ -12,12 +12,12 @@ repos:
   - id: trailing-whitespace
     exclude: 'old/'
 - repo: https://github.com/pycqa/pylint
-  rev: pylint-2.4.2
+  rev: v3.0.1
   hooks:
   - id: pylint
     files: 'space/'
 - repo: https://github.com/psf/black
-  rev: 19.10b0
+  rev: 23.9.1
   hooks:
   - id: black
     exclude: 'old/'
