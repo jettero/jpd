@@ -237,7 +237,6 @@ def arguments_parser():
     )
     cmd_parsers[-1].add_argument(
         "-a",
-        "-s",
         "--since",
         "--after",
         type=str,
@@ -250,9 +249,19 @@ def arguments_parser():
         type=str,
         help="match incidents on or before this date (examples: 10am, yesterday, 72 hours ago, 2023-01-01)",
     )
+    cmd_parsers[-1].add_argument(
+        "-s",
+        "--statuses",
+        type=str,
+        nargs="*",
+        action=MyReplaceDefaultExtend,
+        choices=jpd.const.STATUSES,
+        default=formatted_list(("triggered","acknowledged",)),
+        help="match incidents with these statuses -- or omit args for all",
+    )
     cmd_parsers[-1].set_defaults(
         func=_MAP_QUERY(
-            jpd.query.list_incidents, user_ids="", team_ids="", since="", until="", with_alerts="", include=""
+            jpd.query.list_incidents, user_ids="", team_ids="", since="", until="", with_alerts="", include="", statuses=""
         )
     )
 
