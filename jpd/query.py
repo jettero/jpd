@@ -126,7 +126,7 @@ def list_incidents(
     if until is not None:
         params["until"] = parse_date(until)
 
-    if team_ids := split_strings_maybe(team_ids):
+    if team_ids := split_strings_maybe(team_ids, context='team'):
         params["team_ids[]"] = team_ids
 
     if statuses := split_strings_maybe(statuses, context="status"):
