@@ -1,9 +1,0 @@
-#!/usr/bin/env python
-# encoding: utf-8
-
-# NOTE: this isn't ever really installed... it's just here for testing during
-# development. The actual entrypoint is defined in the
-
-if __name__ == '__main__':
-    import jpd.cmd
-    jpd.cmd.entry_point()

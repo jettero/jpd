@@ -32,8 +32,8 @@ class JPDConfig:
             ufield = f'_{field}'
             # This gen_prop function only exists to make a pesudo dynamic lexical scope binding
             gen_prop(field, ufield)
-        self.locations = DEFAULT_CONFIG_LOCATIONS + locations
-        self.read_config()
+        self.locations = DEFAULT_CONFIG_LOCATIONS
+        self.read_config(*locations)
 
     def __repr__(self):
         def hv(f):
