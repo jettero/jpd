@@ -6,3 +6,4 @@ file*
 /*.egg-info
 /jpd/version.py
 /build
+/dist
