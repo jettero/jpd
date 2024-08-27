@@ -25,6 +25,6 @@ repos:
   hooks:
   - id: pip-compile
     name: Update requirements.txt
-    entry: pip-compile pyproject.toml
+    entry: pip-compile -r pyproject.toml
     language: system
     files: '^pyproject\.toml$'
