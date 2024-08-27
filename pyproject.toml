@@ -8,7 +8,7 @@ write_to = "jpd/version.py"
 
 [project]
 name = "jpd"
-version = "1.2.3"
+version = "0.0.1"
 authors = [{name="Paul Miller", email="paul@merb.net" }]
 description = "I'm just trying to get better at the PagerDuty API by building this little search tool... "
 readme = "README.md"
