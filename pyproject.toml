@@ -1,17 +1,11 @@
-
-[build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools_scm]
-write_to = "jpd/version.py"
-
 [project]
 name = "jpd"
-version = "0.0.1"
-authors = [{name="Paul Miller", email="paul@merb.net" }]
 description = "I'm just trying to get better at the PagerDuty API by building this little search tool... "
-readme = "README.md"
+license = {text="GPL-2.0-only"}
+dynamic = ["version"]
+authors = [{name="Paul Miller", email="paul@merb.net" }]
+maintainers = [{name="Paul Miller", email="paul@merb.net" }]
+readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
 dependencies = [
     "pdpyras",
@@ -22,8 +16,18 @@ dependencies = [
     "bs4",
 ]
 
+[build-system]
+requires = ["setuptools", "setuptools_scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "jpd/version.py"
+
 [project.scripts]
 jpd = "jpd.cmd:entry_point"
 
 [project.urls]
-"Github" = "https://github.com/jettero/jpd.git"
+Github = "https://github.com/jettero/jpd.git"
+
+[tool.setuptools]
+packages = ["jpd"]

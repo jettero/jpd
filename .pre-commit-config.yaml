@@ -21,12 +21,10 @@ repos:
   hooks:
   - id: black
     exclude: 'old/'
-
-# this doesn't seem to quite work...
-# - repo: local
-#   hooks:
-#     - id: tests
-#       name: run tests
-#       entry: python -m pytest
-#       language: system
-#       types: [python]
+- repo: local
+  hooks:
+  - id: pip-compile
+    name: Update requirements.txt
+    entry: pip-compile pyproject.toml
+    language: system
+    files: '^pyproject\.toml$'
