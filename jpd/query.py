@@ -2,8 +2,7 @@
 # coding: utf-8
 
 import logging
-
-from pdpyras import APISession as PDSession, PDClientError
+from pagerduty import RestApiV2Client, HttpError as PDClientError
 
 from jpd.config import JPDC
 from jpd.misc import parse_date, split_strings_maybe
@@ -17,10 +16,9 @@ log = logging.getLogger("jpd.query")
 
 def get_session():
     global SESSION
-
     if SESSION is None:
-        SESSION = PDSession(JPDC.api_key, default_from=JPDC.email)
-
+        # Initialize the official PagerDuty Rest API v2 client
+        SESSION = RestApiV2Client(JPDC.api_key)
     return SESSION
 
 
@@ -39,13 +37,16 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
     log.debug("list_alerts -> list_all(%s, %s)", query_path, params)
 
     try:
+        # RestApiV2Client exposes list_all for collection paths
         return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
     except PDClientError as e:
-        if e.response.status_code == 403:
+        status = getattr(e, 'status', None) or getattr(getattr(e, 'response', None), 'status_code', None)
+        reason = getattr(e, 'message', None) or getattr(getattr(e, 'response', None), 'reason', None)
+        if status == 403:
             # e.response.json()['error'] has further info like "you can't see
             # this" or whatever other useless shit. I just don't think it's
             # worth bothering with
-            log.info("ignoring %d %s for %s", e.response.status_code, e.response.reason, query_path)
+            log.info("ignoring %d %s for %s", status, reason, query_path)
             return list()
         raise
 
@@ -64,8 +65,9 @@ def fetch_incident(
         return (query_path, params)
 
     try:
+        # jget equivalent: RestApiV2Client.get returns parsed JSON
         incident = auto_cache(
-            sess.jget,
+            sess.get,
             query_path,
             params=params,
             cache_group="fetch_incident",
@@ -73,8 +75,10 @@ def fetch_incident(
             auto_pick="incident",
         )
     except PDClientError as e:
-        if e.status_code == 403:
-            log.info("ignoring %d %s for %s", e.response.status_code, e.response.reason, query_path)
+        status = getattr(e, 'status', None) or getattr(getattr(e, 'response', None), 'status_code', None)
+        reason = getattr(e, 'message', None) or getattr(getattr(e, 'response', None), 'reason', None)
+        if status == 403:
+            log.info("ignoring %d %s for %s", status, reason, query_path)
             return dict()
         raise
 
