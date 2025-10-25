@@ -151,7 +151,7 @@ def list_incidents(
     return incidents
 
 
-def acknowledge_incident(incident_id, sess=None, dry_run=False, refresh=False, **params):
+def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=False, **params):
     """Acknowledge a triggered incident and optionally snooze it.
 
     - If 'snooze' is provided, it may be a duration (e.g., '1h', '3600s', '90m', '1h40s', or integer seconds)
@@ -159,12 +159,27 @@ def acknowledge_incident(incident_id, sess=None, dry_run=False, refresh=False, *
       incidents/{id}/snooze endpoint with 'duration'; for absolute time, we use 'until'.
     - Otherwise we update incident status to 'acknowledged'.
     """
-    query_path = f"incidents/{incident_id}"
-
     if sess is None:
         sess = get_session()
 
+    triggered = params.get("triggered")
     snooze = params.get("snooze")
+
+    # Bulk mode: ack all triggered incidents
+    if triggered:
+        # list current user's triggered incidents
+        incidents = list_incidents(statuses=["triggered"], with_alerts=False, sess=sess, dry_run=dry_run, refresh=refresh)
+        ids = [inc.get('id') for inc in incidents if inc.get('id')]
+        if dry_run:
+            return {"bulk_ack_triggered": ids, "snooze": snooze}
+        results = []
+        for iid in ids:
+            results.append(acknowledge_incident(iid, sess=sess, dry_run=False, refresh=refresh, snooze=snooze))
+        return results
+
+    query_path = f"incidents/{incident_id}"
+
+    # Single incident path below
 
     if snooze is not None:
         # parse snooze into either duration seconds or absolute until timestamp
