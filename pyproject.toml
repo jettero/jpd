@@ -9,7 +9,7 @@ maintainers = [{name="Paul Miller", email="paul@merb.net" }]
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
 dependencies = [
-    "pdpyras",
+    "pagerduty",
     "tabulate",
     "dateparser",
     "simplejson",
