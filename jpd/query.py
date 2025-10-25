@@ -149,3 +149,121 @@ def list_incidents(
         for incident in incidents:
             incident['alerts'] = list_alerts(incident['id'])
     return incidents
+
+
+def acknowledge_incident(incident_id, sess=None, dry_run=False, refresh=False, **params):
+    """Acknowledge a triggered incident and optionally snooze it.
+
+    - If 'snooze' is provided, it may be a duration (e.g., '1h', '3600s', '90m', '1h40s', or integer seconds)
+      or an absolute time like '19:00' (today, local time). We translate durations to the
+      incidents/{id}/snooze endpoint with 'duration'; for absolute time, we use 'until'.
+    - Otherwise we update incident status to 'acknowledged'.
+    """
+    query_path = f"incidents/{incident_id}"
+
+    if sess is None:
+        sess = get_session()
+
+    snooze = params.get("snooze")
+
+    if snooze is not None:
+        # parse snooze into either duration seconds or absolute until timestamp
+        dur_secs, until_iso = _parse_snooze(snooze)
+
+        snooze_path = f"incidents/{incident_id}/snooze"
+        payload = {"snooze": {}}
+        if dur_secs is not None:
+            payload["snooze"]["duration"] = int(dur_secs)
+        if until_iso is not None:
+            payload["snooze"]["until"] = until_iso
+
+        if dry_run:
+            return (snooze_path, {"method": "POST", "json": payload})
+
+        log.debug("acknowledge_incident -> post(%s)", snooze_path)
+        doc = sess.post(snooze_path, json=payload)
+        return doc.get("incident", doc)
+
+    # plain acknowledge
+    body = {"incident": {"type": "incident", "status": "acknowledged"}}
+    if dry_run:
+        return (query_path, {"method": "PUT", "json": body})
+    log.debug("acknowledge_incident -> put(%s)", query_path)
+    doc = sess.put(query_path, json=body)
+    return doc.get("incident", doc)
+
+
+def duration_parse(spec: str) -> int:
+    """Parse a duration string into seconds.
+
+    Supports:
+    - Integer seconds: "3600"
+    - Units: s, m, h, d (e.g., 90m, 1h40s, 2d1h)
+    - Kilo-seconds: 4k, 4ks, 4ksec (== 4000)
+    Returns seconds (int). If unparsable, defaults to 3600.
+    """
+    import re
+    spec = str(spec).strip()
+
+    # ksec variants: 4k, 4ks, 4ksec
+    m = re.fullmatch(r"(\d+)\s*[k](?:\s*s(?:ec)?)?", spec, flags=re.IGNORECASE)
+    if m:
+        return int(m.group(1)) * 1000
+
+    # Pure integer
+    if spec.isdigit():
+        return int(spec)
+
+    # Compound duration: (\d+)([smhd]) ...
+    total = 0
+    matched_any = False
+    for qty, unit in re.findall(r"(\d+)\s*([sSmMhHdD])", spec):
+        matched_any = True
+        n = int(qty)
+        u = unit.lower()
+        if u == 's':
+            total += n
+        elif u == 'm':
+            total += n * 60
+        elif u == 'h':
+            total += n * 3600
+        elif u == 'd':
+            total += n * 86400
+    if matched_any:
+        return total
+
+    return 3600
+
+
+def _parse_snooze(spec: str):
+    """Parse snooze spec.
+
+    Returns (duration_seconds or None, until_iso or None).
+    - Integers => seconds
+    - Durations: supports numbers with s/m/h/d (e.g., 3600s, 15m, 1h40s, 2d1h)
+    - Clock time HH:MM => absolute time today in local time
+    """
+    import re
+    from datetime import datetime, timedelta
+
+    spec = str(spec).strip()
+
+    # Absolute time HH:MM
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})", spec)
+    if m:
+        hh = int(m.group(1))
+        mm = int(m.group(2))
+        now = datetime.now()
+        until = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if until <= now:
+            # if time already passed today, choose tomorrow
+            until = until + timedelta(days=1)
+        return None, until.isoformat(timespec='seconds')
+
+    # Durations via shared parser
+    dur = duration_parse(spec)
+    if dur is not None:
+        return dur, None
+
+    # Fallback: default to 1h
+    return 3600, None
