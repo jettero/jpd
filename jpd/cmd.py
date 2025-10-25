@@ -291,7 +291,7 @@ def arguments_parser():
     cmd_parsers.append(
         subs.add_parser(
             "list-alerts",
-            aliases=["lia", "la", "alerts", "a", "fetch-alerts", "fa"],
+            aliases=["lia", "la", "alerts", "al", "fetch-alerts", "fa"],
             help="list the alerts for an incident",
         )
     )
