@@ -25,25 +25,35 @@ def parse_date(x, in_utc=True, fmt="%Y-%m-%dT%H:%M%Z", utc_to_zulu=True):
 
 def aliases_and_colloquialisms(*items, context="user"):
     C.ContextsException.check(context)
+    collected = []
     for item in items:
         if isinstance(item, (list, tuple)):
-            yield from aliases_and_colloquialisms(*item, context=context)
+            collected.extend(aliases_and_colloquialisms(*item, context=context))
             continue
         elif isinstance(item, str):
             if item in ("all", "any"):
                 if context == 'include':
-                    yield from C.INCLUDES
+                    collected.extend(C.INCLUDES)
                 else:
-                    yield None  # None triggers the upper layers to un-fill the param
+                    collected.append(None)  # signals upper layers to omit the param
                 break
             elif item in C.SELF_AND_TEAM:
                 if context == 'user':
-                    yield JPDC.user_id
+                    collected.append(JPDC.user_id)
                     continue
                 elif context == 'team':
-                    yield from JPDC.team_ids
+                    collected.extend(JPDC.team_ids)
                     continue
-        yield item
+        collected.append(item)
+
+    # Context-specific validation to mirror split_strings_maybe behavior
+    if None in collected:
+        return collected
+    if context == "status":
+        C.StatusesException.check(*collected, context=context)
+    elif context == "include":
+        C.IncludesException.check(*collected, context=context)
+    return collected
 
 
 def split_strings_maybe(*items, context="user"):
