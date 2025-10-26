@@ -111,8 +111,11 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
 
         summary = inc.get("title") or inc.get("summary") or ""
         # In typical cases, the first alert repeats the incident summary. To reduce
-        # redundancy, omit the incident summary text and show only tags/assignee.
-        text = f"{svc_part}{status_tag}{pr}{assignee}{age_tag}".strip()
+        # redundancy, omit the incident summary text when showing alerts; otherwise include it.
+        if show_alerts:
+            text = f"{svc_part}{status_tag}{pr}{assignee}{age_tag}".strip()
+        else:
+            text = f"{svc_part}{summary} {status_tag}{pr}{assignee}{age_tag}".strip()
 
         # Guard spaces inside square-bracket tags to prevent wrapping within them.
         # Replace spaces inside [...] with BEL (\x07) before wrapping, then restore.
