@@ -92,23 +92,33 @@ def service_prefix(thing, show_service_info, incident_service_ref=None):
 def tag_safe_tabulate(rows, **tab_kwargs):
     tag_db = dict()
 
-    def _compute_tag_replacement(x):
+    def _compute_tag_replacement(m):
+        x = m.group(0)
+        try:
+            return tag_db[x]
+        except KeyError:
+            pass
         inside = x[1:-1]
-        if inside in tag_db:
-            return tag_db[inside]
         if re.search(r'[^A-Za-z0-9]', inside):
             c = len(tag_db) + 7
-            tag_db[inside] = gtxt = f'\x07{c:03d}'
-            x = f'[{gtxt}]'
+            tag_db[x] = gtxt = f'[\x07{c:03d}]'
+            return gtxt
         return x
 
-    def _fixup_tag_replacement(x):
+    def _fixup_tag_replacement(m):
+        x = m.group(0)
+        try:
+            return tag_db[x]
+        except KeyError:
+            pass
         return x
 
     for row in rows:
-        row[2] = re.sub(r'\[[^\]{4,}]\]', _compute_tag_replacement, row[2])
+        row[2] = re.sub(r'\[[^\]]{4,}\]', _compute_tag_replacement, row[2])
 
     rendered = tabulate(rows, **tab_kwargs)
+
+    tag_db = {v: k for k,v in tag_db.items()}
     rendered = re.sub(r'\[\x07\d+\]', _fixup_tag_replacement, rendered)
 
     return rendered
