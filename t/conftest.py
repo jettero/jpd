@@ -48,10 +48,10 @@ def incident_with_alerts():
                 "service": {"id": "svc1", "summary": "Lorem Service"},
             },
             {
-                "title": "Incididunt ut labore et dolore",
+                "title": "Disk full",
                 "status": "resolved",
                 "created_at": _iso_ago(2),
-                "service": {"id": "svc2", "summary": "Ipsum Service"},
+                "service": {"id": "svc2", "summary": "db"},
             },
         ],
     }
