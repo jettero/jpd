@@ -201,7 +201,12 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
             return (snooze_path, {"method": "POST", "json": payload})
 
         log.debug("acknowledge_incident -> post(%s)", snooze_path)
-        doc = sess.post(snooze_path, json=payload)
+        # RestApiV2Client returns an httpx.Response for post/put; parse JSON
+        resp = sess.post(snooze_path, json=payload)
+        try:
+            doc = resp.json()
+        except Exception:
+            return {}
         return doc.get("incident", doc)
 
     # plain acknowledge
@@ -209,7 +214,11 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
     if dry_run:
         return (query_path, {"method": "PUT", "json": body})
     log.debug("acknowledge_incident -> put(%s)", query_path)
-    doc = sess.put(query_path, json=body)
+    resp = sess.put(query_path, json=body)
+    try:
+        doc = resp.json()
+    except Exception:
+        return {}
     return doc.get("incident", doc)
 
 
