@@ -11,6 +11,10 @@ import simplejson as json
 import jpd.query
 import jpd.const
 import jpd.logging
+import os
+import textwrap
+from tabulate import tabulate
+from jpd.render import incidents_to_text
 
 # log = logging.getLogger("jpd.cmd")
 
@@ -75,6 +79,22 @@ def scan_for_html(x):
 
 
 def print_or_whatever(args, doc):
+    if args.format == "text":
+        # Expecting lists of incidents for list-incidents; also accept single incident
+        data = doc
+        if isinstance(data, dict) and data.get("id"):
+            incidents = [data]
+        elif isinstance(data, list):
+            incidents = data
+        else:
+            incidents = []
+
+        if args.textify:
+            incidents = scan_for_html(incidents)
+
+        print(incidents_to_text(incidents))
+        return
+
     if args.textify:
         doc = scan_for_html(doc)
     print(json_format(args, doc))

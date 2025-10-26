@@ -3,8 +3,9 @@
 ## Critical Importance
 
 - Keep responses short; show code over prose.
-- do not use getattr/hasattr and try/except blocks
+- do not use getattr/hasattr and try/except blocks unless it really can't be avoided
 - if you already know an instance has certain attributes because of it's type, then don't check for the attributes
+- you must ask permission to use getattr/hasattr
 
 ## Testing
 
