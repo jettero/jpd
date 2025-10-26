@@ -131,6 +131,10 @@ def main(*args):
     main_parser, *other_parsers = arguments_parser()
     args = main_parser.parse_args(*args)
 
+    # If text format requested, imply --textify for output processing
+    if args.format == "text" and not args.textify:
+        args.textify = True
+
     if args.show_parsed_args:
         doc = dict(**args.__dict__)
         del doc["func"]
@@ -189,7 +193,20 @@ def arguments_parser():
         "--textify-html",
         "--textify-xml",
         action="store_true" if HAS_BSOUP else Bs4Error,
-        help="try to textify any xml or html documents" if HAS_BSOUP else argparse.SUPPRESS,
+        help=(
+            "try to textify any xml or html documents; also enabled automatically when -f/--format is 'text'"
+            if HAS_BSOUP
+            else argparse.SUPPRESS
+        ),
+    )
+
+    # Output format selection
+    main_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "text"),
+        default="json",
+        help="select output format: 'json' (default) or 'text' (enables --textify)",
     )
 
     ############ SETUP CMDS
