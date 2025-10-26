@@ -3,6 +3,8 @@
 
 import logging
 from pagerduty import RestApiV2Client, HttpError as PDClientError
+import sys
+import time
 
 from jpd.config import JPDC
 from jpd.misc import parse_date, split_strings_maybe
@@ -22,6 +24,25 @@ def get_session():
     return SESSION
 
 
+_spin_state = {"i": 0}
+
+
+def _spinner_print(label, done=False):
+    # Minimal spinner to stderr; keeps stdout clean for piping.
+    frames = ("-", "\\", "|", "/")
+    if done:
+        # clear line only; no newline to avoid blank lines
+        sys.stderr.write("\r\x1b[2K\r")
+        sys.stderr.flush()
+        return
+    i = _spin_state["i"]
+    ch = frames[i % len(frames)]
+    _spin_state["i"] = i + 1
+    # Add two spaces after label to keep cursor off the URL
+    sys.stderr.write(f"\r[{ch}] {label}  ")
+    sys.stderr.flush()
+
+
 def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
     query_path = f"incidents/{incident_id}/alerts"
 
@@ -38,7 +59,11 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
 
     try:
         # RestApiV2Client exposes list_all for collection paths
-        return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
+        _spinner_print(f"GET {query_path}")
+        try:
+            return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
+        finally:
+            _spinner_print("", done=True)
     except PDClientError as e:
         status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
         reason = getattr(e, "message", None) or getattr(getattr(e, "response", None), "reason", None)
@@ -67,14 +92,20 @@ def fetch_incident(
 
     try:
         # jget equivalent: RestApiV2Client.get returns parsed JSON
-        incident = auto_cache(
-            sess.get,
-            query_path,
-            params=params,
-            cache_group="fetch_incident",
-            refresh=refresh,
-            auto_pick="incident",
-        )
+        # debug log of endpoint
+        log.debug("fetch_incident -> get(%s)", query_path)
+        _spinner_print(f"GET {query_path}")
+        try:
+            incident = auto_cache(
+                sess.get,
+                query_path,
+                params=params,
+                cache_group="fetch_incident",
+                refresh=refresh,
+                auto_pick="incident",
+            )
+        finally:
+            _spinner_print("", done=True)
     except PDClientError as e:
         status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
         reason = getattr(e, "message", None) or getattr(getattr(e, "response", None), "reason", None)
@@ -148,8 +179,11 @@ def list_incidents(
         return (query_path, params)
 
     log.debug("list_incidents -> list_all(%s, %s)", query_path, params)
-
-    incidents = auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)
+    _spinner_print(f"GET {query_path}")
+    try:
+        incidents = auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)
+    finally:
+        _spinner_print("", done=True)
     if with_alerts:
         for incident in incidents:
             incident["alerts"] = list_alerts(incident["id"])
@@ -201,8 +235,12 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
             return (snooze_path, {"method": "POST", "json": payload})
 
         log.debug("acknowledge_incident -> post(%s)", snooze_path)
+        _spinner_print(f"POST {snooze_path}")
         # RestApiV2Client returns an httpx.Response for post/put; parse JSON
-        resp = sess.post(snooze_path, json=payload)
+        try:
+            resp = sess.post(snooze_path, json=payload)
+        finally:
+            _spinner_print("", done=True)
         try:
             doc = resp.json()
         except Exception:
@@ -214,7 +252,11 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
     if dry_run:
         return (query_path, {"method": "PUT", "json": body})
     log.debug("acknowledge_incident -> put(%s)", query_path)
-    resp = sess.put(query_path, json=body)
+    _spinner_print(f"PUT {query_path}")
+    try:
+        resp = sess.put(query_path, json=body)
+    finally:
+        _spinner_print("", done=True)
     try:
         doc = resp.json()
     except Exception:
