@@ -87,6 +87,12 @@ def print_or_whatever(args, doc):
         elif isinstance(data, list):
             incidents = data
         else:
+            # Fallback: human-friendly acks/snoozes when no incident document present
+            # Recognize minimal success markers from acknowledge/snooze flows
+            if isinstance(data, dict) and data.get("_ok"):
+                msg = data.get("_msg") or "ok"
+                print(msg)
+                return
             incidents = []
 
         if args.textify:

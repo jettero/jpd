@@ -43,6 +43,19 @@ def _spinner_print(label, done=False):
     sys.stderr.flush()
 
 
+class Spinner:
+    def __init__(self, label):
+        self.label = label
+
+    def __enter__(self):
+        _spinner_print(self.label)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        _spinner_print("", done=True)
+        return False
+
+
 def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
     query_path = f"incidents/{incident_id}/alerts"
 
@@ -59,11 +72,14 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
 
     try:
         # RestApiV2Client exposes list_all for collection paths
-        _spinner_print(f"GET {query_path}")
-        try:
-            return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
-        finally:
-            _spinner_print("", done=True)
+        with Spinner(f"GET {query_path}"):
+            return auto_cache(
+                sess.list_all,
+                query_path,
+                params=params,
+                cache_group="list_alerts",
+                refresh=refresh,
+            )
     except PDClientError as e:
         status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
         reason = getattr(e, "message", None) or getattr(getattr(e, "response", None), "reason", None)
@@ -94,8 +110,7 @@ def fetch_incident(
         # jget equivalent: RestApiV2Client.get returns parsed JSON
         # debug log of endpoint
         log.debug("fetch_incident -> get(%s)", query_path)
-        _spinner_print(f"GET {query_path}")
-        try:
+        with Spinner(f"GET {query_path}"):
             incident = auto_cache(
                 sess.get,
                 query_path,
@@ -104,8 +119,6 @@ def fetch_incident(
                 refresh=refresh,
                 auto_pick="incident",
             )
-        finally:
-            _spinner_print("", done=True)
     except PDClientError as e:
         status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
         reason = getattr(e, "message", None) or getattr(getattr(e, "response", None), "reason", None)
@@ -179,11 +192,14 @@ def list_incidents(
         return (query_path, params)
 
     log.debug("list_incidents -> list_all(%s, %s)", query_path, params)
-    _spinner_print(f"GET {query_path}")
-    try:
-        incidents = auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)
-    finally:
-        _spinner_print("", done=True)
+    with Spinner(f"GET {query_path}"):
+        incidents = auto_cache(
+            sess.list_all,
+            query_path,
+            params=params,
+            cache_group="list_incidents",
+            refresh=refresh,
+        )
     if with_alerts:
         for incident in incidents:
             incident["alerts"] = list_alerts(incident["id"])
@@ -234,35 +250,40 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
 
         if dry_run:
             return (snooze_path, {"method": "POST", "json": payload})
+        # Snooze requires acknowledged status; send ack first
+        ack_body = {"incident": {"type": "incident", "status": "acknowledged"}}
+        with Spinner(f"PUT {query_path}"):
+            sess.put(query_path, json=ack_body)
 
         log.debug("acknowledge_incident -> post(%s)", snooze_path)
-        _spinner_print(f"POST {snooze_path}")
         # RestApiV2Client returns an httpx.Response for post/put; parse JSON
-        try:
+        with Spinner(f"POST {snooze_path}"):
             resp = sess.post(snooze_path, json=payload)
-        finally:
-            _spinner_print("", done=True)
         try:
             doc = resp.json()
         except Exception:
-            return {}
-        return doc.get("incident", doc)
+            doc = {}
+        # Prefer incident doc if present; else return minimal success for text mode
+        inc = doc.get("incident") if isinstance(doc, dict) else None
+        if isinstance(inc, dict) and inc.get("id"):
+            return inc
+        return {"_ok": True, "_msg": f"[ok] snoozed {incident_id} for {int(dur_secs)}s"}
 
     # plain acknowledge
     body = {"incident": {"type": "incident", "status": "acknowledged"}}
     if dry_run:
         return (query_path, {"method": "PUT", "json": body})
     log.debug("acknowledge_incident -> put(%s)", query_path)
-    _spinner_print(f"PUT {query_path}")
-    try:
+    with Spinner(f"PUT {query_path}"):
         resp = sess.put(query_path, json=body)
-    finally:
-        _spinner_print("", done=True)
     try:
         doc = resp.json()
     except Exception:
-        return {}
-    return doc.get("incident", doc)
+        doc = {}
+    inc = doc.get("incident") if isinstance(doc, dict) else None
+    if isinstance(inc, dict) and inc.get("id"):
+        return inc
+    return {"_ok": True, "_msg": f"[ok] acknowledged {incident_id}"}
 
 
 def duration_parse(spec: str) -> int:
