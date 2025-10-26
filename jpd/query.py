@@ -190,7 +190,7 @@ def list_incidents(
     return incidents
 
 
-def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=False, **params):
+def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=False, triggered=False, **params):
     """Acknowledge a triggered incident and optionally snooze it.
 
     - If 'snooze' is provided, it may be a duration (e.g., '1h', '3600s', '90m', '1h40s', or integer seconds)
@@ -201,35 +201,36 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
     if sess is None:
         sess = get_session()
 
-    triggered = params.get("triggered")
     snooze = params.get("snooze")
 
-    # Bulk mode: ack all triggered incidents
-    if triggered:
-        # list current user's triggered incidents
-        incidents = list_incidents(statuses=["triggered"], with_alerts=False, sess=sess, dry_run=dry_run, refresh=refresh)
-        ids = [inc.get("id") for inc in incidents if inc.get("id")]
-        if dry_run:
-            return {"bulk_ack_triggered": ids, "snooze": snooze}
-        results = []
-        for iid in ids:
-            results.append(acknowledge_incident(iid, sess=sess, dry_run=False, refresh=refresh, snooze=snooze))
-        return results
+    # Bulk modes via incident_id keywords or --triggered flag
+    # - incident_id == 'all' => all open incidents (triggered + acknowledged)
+    # - incident_id == 'triggered' or --triggered => only triggered incidents
+    if isinstance(incident_id, str):
+        key = incident_id.strip().lower()
+        if key in ("all", "triggered") or triggered:
+            statuses = None if key == "all" and not triggered else ["triggered"]
+            if dry_run:
+                path = "incidents"
+                return {"bulk": key if key in ("all", "triggered") else "triggered", "path": path, "snooze": snooze}
+            incidents = list_incidents(statuses=statuses, with_alerts=False, sess=sess, dry_run=False, refresh=refresh)
+            ids = [inc.get("id") for inc in incidents if inc.get("id")]
+            results = []
+            for iid in ids:
+                results.append(acknowledge_incident(iid, sess=sess, dry_run=False, refresh=refresh, snooze=snooze))
+            return results
 
     query_path = f"incidents/{incident_id}"
 
     # Single incident path below
 
     if snooze is not None:
-        # parse snooze into either duration seconds or absolute until timestamp
-        dur_secs, until_iso = _parse_snooze(snooze)
+        # parse snooze into duration seconds; API only accepts duration
+        dur_secs = _parse_snooze(snooze)
 
         snooze_path = f"incidents/{incident_id}/snooze"
-        payload = {"snooze": {}}
-        if dur_secs is not None:
-            payload["snooze"]["duration"] = int(dur_secs)
-        if until_iso is not None:
-            payload["snooze"]["until"] = until_iso
+        # Per PD API, snooze takes duration seconds
+        payload = {"duration": int(dur_secs)}
 
         if dry_run:
             return (snooze_path, {"method": "POST", "json": payload})
@@ -310,10 +311,10 @@ def duration_parse(spec: str) -> int:
 def _parse_snooze(spec: str):
     """Parse snooze spec.
 
-    Returns (duration_seconds or None, until_iso or None).
+    Returns duration_seconds (int).
     - Integers => seconds
     - Durations: supports numbers with s/m/h/d (e.g., 3600s, 15m, 1h40s, 2d1h)
-    - Clock time HH:MM => absolute time today in local time
+    - Clock time HH:MM => compute seconds from now() until that local time (tomorrow if past)
     """
     import re
     from datetime import datetime, timedelta
@@ -330,12 +331,12 @@ def _parse_snooze(spec: str):
         if until <= now:
             # if time already passed today, choose tomorrow
             until = until + timedelta(days=1)
-        return None, until.isoformat(timespec="seconds")
+        return int((until - now).total_seconds())
 
     # Durations via shared parser
     dur = duration_parse(spec)
     if dur is not None:
-        return dur, None
+        return dur
 
     # Fallback: default to 1h
-    return 3600, None
+    return 3600

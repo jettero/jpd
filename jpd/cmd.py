@@ -379,7 +379,7 @@ def arguments_parser():
         const="1h",
         help="optionally snooze the incident; works with durations like 3600, 3600s, 1h, 1h40s, or an absolute time like 19:00",
     )
-    # 'triggered' is not an argument on this subparser; passing it causes an AttributeError
+    # 'triggered' is not an argument on this subparser; do not map it here
     cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.acknowledge_incident, "incident_id", snooze=""))
 
     return main_parser, *cmd_parsers
