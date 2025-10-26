@@ -5,7 +5,6 @@
 
 import os
 import re
-import textwrap
 from datetime import datetime, timezone
 from tabulate import tabulate
 
@@ -87,11 +86,34 @@ def service_prefix(thing, show_service_info, incident_service_ref=None):
     return f"{sname}: " if sname else ""
 
 
-def tag_safe_wrap(tw, text):
-    # Protect bracketed tags from internal wrapping by swapping spaces for BEL
-    guarded = re.sub(r"\[[^\]]+\]", lambda m: m.group(0).replace(" ", "\x07"), text)
-    wrapped = tw.wrap(guarded) or [""]
-    return [w.replace("\x07", " ") for w in wrapped]
+def tag_safe_tabulate(rows, **tab_kwargs):
+    tag_db = dict()
+
+    def _compute_tag_replacement(x):
+        inside = x[1:-1]
+        if inside in tag_db:
+            return tag_db[inside]
+        if re.search(r'[^A-Za-z0-9]', inside):
+            c = len(tag_db) + 7
+            tag_db[inside] = gtxt = f'\x07{c:03d}'
+            x = f'[{gtxt}]'
+        return x
+
+    def _fixup_tag_replacement(x):
+        return x
+
+    for row in rows:
+        row[2] = re.sub(r'\[[^\]{4,}]\]', _compute_tag_replacement, row[2])
+
+    import pprint
+    pprint.pp(rows, indent=2)
+    print(f"tabulate rows={len(rows)} {tab_kwargs!r}")
+    rendered = tabulate(rows, **tab_kwargs)
+    print("/tabulate")
+
+    rendered = re.sub(r'\[\x07\d+\]', _fixup_tag_replacement, rendered)
+
+    return rendered
 
 
 def strip_incident_prefix(alert_title, incident_summary):
@@ -115,23 +137,15 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
     - Respects terminal width via COLUMNS env (defaults to 80)
     - Avoids breaking words inside square brackets
     """
-    cols = int(os.environ.get("COLUMNS", 80))
-    id_width = 18
+    id_width = 14
     gap = 2
-    # Require at least 33 columns per user guidance
-    min_cols = 33
-    if cols < min_cols:
+    emoji_width = 1
+    summary_width = int(os.environ.get("COLUMNS", 80)) - (id_width + emoji_width + 2)
+
+    if summary_width < 30:
         raise ValueError("Display too narrow for text renderer")
-    wrap_width = max(20, cols - id_width - gap)
 
-    tw = textwrap.TextWrapper(
-        width=wrap_width,
-        break_long_words=False,
-        break_on_hyphens=False,
-        replace_whitespace=False,
-    )
-
-    rows: List[List[str]] = []
+    rows = []
 
     for inc in incidents:
         iid = inc.get("id", "")
@@ -163,12 +177,7 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
         else:
             text = f"{svc_part}{summary} {st_tag}{pr}{assignee}{age_tag}".strip()
 
-        # Guard spaces inside square-bracket tags to prevent wrapping within them.
-        # Replace spaces inside [...] with BEL (\x07) before wrapping, then restore.
-        wrapped = tag_safe_wrap(tw, text)
-        rows.append([iid, wrapped[0]])
-        for cont in wrapped[1:]:
-            rows.append(["", cont])
+        rows.append([iid, "🚨", text])
 
         # Render alerts only if explicitly requested
         if show_alerts:
@@ -192,16 +201,28 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
                 # alert age from created_at
                 aage_tag = ""
                 a_created_at = al.get("created_at") or al.get("createdAt")
-                if a_created_at:
+                if a_created_at: # XXX prefixing with spaces:
                     aage_tag = f" [{format_timedelta_brief(a_created_at)}]"
                 abits = f"{asvc_name}: {atitle_stripped}" if asvc_name else atitle_stripped
                 abits = abits.strip()
                 if not abits:
                     continue
-                atext = f"• {abits} {ast_tag}{aage_tag}".strip()
-                awrapped = tag_safe_wrap(tw, atext)
-                rows.append(["", awrapped[0]])
-                for cont in awrapped[1:]:
-                    rows.append(["", cont])
+                atext = f"{abits} {ast_tag}{aage_tag}".strip()
+                rows.append(["", "➡️", atext])
 
-    return tabulate(rows, tablefmt="plain", colalign=("left", "left"))
+    ##### start of special guard for stupid dumbdumb heads -- do not remove
+    for row in rows:
+        if len(row) != 3:
+            raise Exception("I'm a stupid dumb dumb head")
+        for item in row:
+            if not isinstance(item, str):
+                raise Exception("I'm a stupid dumb dumb head")
+            if item.startswith(" ") or item.endswith(" "):
+                raise Exception("I'm a stupid dumb dumb head")
+    ##### end of special guard for stupid dumbdumb heads -- do not remove
+    return tag_safe_tabulate(
+        rows,
+        tablefmt="plain",
+        colalign=("left", "left", "left"),
+        maxcolwidths=[None, None, summary_width],
+    )
