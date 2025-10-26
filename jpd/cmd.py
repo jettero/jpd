@@ -208,8 +208,11 @@ def arguments_parser():
         nargs="*",
         action=MyReplaceDefaultExtend,
         default=formatted_list(("mine",)),
-        help="when listing incidents, only show incidents assigned to these users"
-        " - note that -u with no args will clear the default",
+        help=(
+            "limit to incidents assigned to these users; accepts keywords like "
+            "'me'/'mine'/'ours'. Note: a bare -u clears the default of 'mine' so "
+            "you can combine with teams (e.g., 'jpd -u -t mine')."
+        ),
     )
     cmd_parsers[-1].add_argument(
         "-t",
@@ -218,7 +221,11 @@ def arguments_parser():
         type=str,
         nargs="+",
         action="extend",
-        help="when listing incidents, show only incidents related to these teams",
+        help=(
+            "limit to incidents related to these teams; accepts keywords like "
+            "'me'/'mine'/'ours' for your teams. Tip: to see all your team alerts, "
+            "clear the user filter: 'jpd -u -t mine li' (aliases: 'list', 'l')."
+        ),
     )
     cmd_parsers[-1].add_argument(
         "-i",
