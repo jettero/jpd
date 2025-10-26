@@ -1,13 +1,17 @@
-AGENTS guide (concise, actionable)
+# AGENTS guide (concise, actionable)
+
+## Critical Importance
 
 - Keep responses short; show code over prose.
+- do not use getattr/hasattr and try/except blocks
+- if you already know an instance has certain attributes because of it's type, then don't check for the attributes
 
-Testing
+## Testing
 
 - Run tests isolated from external plugins: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q`.
 - This only prevents third‑party plugin autoload; behavior is unchanged.
 
-Text rendering
+## Text rendering
 
 - Build a light projection from common PagerDuty fields: id, status, severity/priority, service summary, created_at, assignments, alerts.
 - When listing things for the humans (--format text, etc); always try to align things  vertically
