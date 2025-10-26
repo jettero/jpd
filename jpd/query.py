@@ -40,8 +40,8 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
         # RestApiV2Client exposes list_all for collection paths
         return auto_cache(sess.list_all, query_path, params=params, cache_group="list_alerts", refresh=refresh)
     except PDClientError as e:
-        status = getattr(e, 'status', None) or getattr(getattr(e, 'response', None), 'status_code', None)
-        reason = getattr(e, 'message', None) or getattr(getattr(e, 'response', None), 'reason', None)
+        status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
+        reason = getattr(e, "message", None) or getattr(getattr(e, "response", None), "reason", None)
         if status == 403:
             # e.response.json()['error'] has further info like "you can't see
             # this" or whatever other useless shit. I just don't think it's
@@ -49,6 +49,7 @@ def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=
             log.info("ignoring %d %s for %s", status, reason, query_path)
             return list()
         raise
+
 
 def fetch_incident(
     incident_id, include=C.INCIDENT_INCLUDES, sess=None, dry_run=False, refresh=False, with_alerts=True, **params
@@ -75,8 +76,8 @@ def fetch_incident(
             auto_pick="incident",
         )
     except PDClientError as e:
-        status = getattr(e, 'status', None) or getattr(getattr(e, 'response', None), 'status_code', None)
-        reason = getattr(e, 'message', None) or getattr(getattr(e, 'response', None), 'reason', None)
+        status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
+        reason = getattr(e, "message", None) or getattr(getattr(e, "response", None), "reason", None)
         if status == 403:
             log.info("ignoring %d %s for %s", status, reason, query_path)
             return dict()
@@ -84,7 +85,11 @@ def fetch_incident(
 
     if with_alerts:
         incident["alerts"] = list_alerts(
-            incident_id, include=[ x for x in C.LIST_ALERTS_INCLUDES if x not in "incidents" ], dry_run=dry_run, refresh=refresh, sess=sess
+            incident_id,
+            include=[x for x in C.LIST_ALERTS_INCLUDES if x not in "incidents"],
+            dry_run=dry_run,
+            refresh=refresh,
+            sess=sess,
         )
 
     return incident
@@ -130,7 +135,7 @@ def list_incidents(
     if until is not None:
         params["until"] = parse_date(until)
 
-    if team_ids := split_strings_maybe(team_ids, context='team'):
+    if team_ids := split_strings_maybe(team_ids, context="team"):
         params["team_ids[]"] = team_ids
 
     if statuses := split_strings_maybe(statuses, context="status"):
@@ -147,7 +152,7 @@ def list_incidents(
     incidents = auto_cache(sess.list_all, query_path, params=params, cache_group="list_incidents", refresh=refresh)
     if with_alerts:
         for incident in incidents:
-            incident['alerts'] = list_alerts(incident['id'])
+            incident["alerts"] = list_alerts(incident["id"])
     return incidents
 
 
@@ -169,7 +174,7 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
     if triggered:
         # list current user's triggered incidents
         incidents = list_incidents(statuses=["triggered"], with_alerts=False, sess=sess, dry_run=dry_run, refresh=refresh)
-        ids = [inc.get('id') for inc in incidents if inc.get('id')]
+        ids = [inc.get("id") for inc in incidents if inc.get("id")]
         if dry_run:
             return {"bulk_ack_triggered": ids, "snooze": snooze}
         results = []
@@ -218,6 +223,7 @@ def duration_parse(spec: str) -> int:
     Returns seconds (int). If unparsable, defaults to 3600.
     """
     import re
+
     spec = str(spec).strip()
 
     # ksec variants: 4k, 4ks, 4ksec
@@ -236,13 +242,13 @@ def duration_parse(spec: str) -> int:
         matched_any = True
         n = int(qty)
         u = unit.lower()
-        if u == 's':
+        if u == "s":
             total += n
-        elif u == 'm':
+        elif u == "m":
             total += n * 60
-        elif u == 'h':
+        elif u == "h":
             total += n * 3600
-        elif u == 'd':
+        elif u == "d":
             total += n * 86400
     if matched_any:
         return total
@@ -273,7 +279,7 @@ def _parse_snooze(spec: str):
         if until <= now:
             # if time already passed today, choose tomorrow
             until = until + timedelta(days=1)
-        return None, until.isoformat(timespec='seconds')
+        return None, until.isoformat(timespec="seconds")
 
     # Durations via shared parser
     dur = duration_parse(spec)

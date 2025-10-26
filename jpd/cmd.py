@@ -175,9 +175,7 @@ def arguments_parser():
         help="invoke the query operation but show the request args rather than executing over HTTP",
     )
 
-    main_parser.add_argument(
-        "-S", "--show-parsed-args", action="store_true", help="show the parsed args and options and exit"
-    )
+    main_parser.add_argument("-S", "--show-parsed-args", action="store_true", help="show the parsed args and options and exit")
 
     main_parser.add_argument(
         "-j",
@@ -214,9 +212,7 @@ def arguments_parser():
     cmd_parsers = list()
 
     ############ LIST INCIDENTS
-    cmd_parsers.append(
-        subs.add_parser("list-incidents", aliases=["list", "li", "l"], help='list incidents (aka "PDs")')
-    )
+    cmd_parsers.append(subs.add_parser("list-incidents", aliases=["list", "li", "l"], help='list incidents (aka "PDs")'))
     cmd_parsers[-1].add_argument(
         "-u",
         "--user-ids",
@@ -280,7 +276,12 @@ def arguments_parser():
         nargs="*",
         action=MyReplaceDefaultExtend,
         choices=jpd.const.STATUSES,
-        default=formatted_list(("triggered","acknowledged",)),
+        default=formatted_list(
+            (
+                "triggered",
+                "acknowledged",
+            )
+        ),
         help="match incidents with these statuses -- or omit args for all",
     )
     cmd_parsers[-1].set_defaults(
@@ -291,7 +292,9 @@ def arguments_parser():
 
     ############ FETCH INCIDENT
     cmd_parsers.append(
-        subs.add_parser("fetch-incident", aliases=["view", "fetch", "fetch-alert", "v", "f"], help="fetch details about an incident")
+        subs.add_parser(
+            "fetch-incident", aliases=["view", "fetch", "fetch-alert", "v", "f"], help="fetch details about an incident"
+        )
     )
     group = cmd_parsers[-1].add_mutually_exclusive_group(required=True)
     group.add_argument("incident_id", metavar="incident-id", type=str, nargs="?")

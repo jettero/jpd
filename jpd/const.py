@@ -25,6 +25,7 @@ STATUSES = ("triggered", "resolved", "acknowledged")
 
 SELF_AND_TEAM = ("me", "mine", "us", "ours")
 
+
 class JPDContextException(Exception):
     SET_MEMBERS = tuple()
     IMA = None
@@ -46,31 +47,37 @@ class JPDContextException(Exception):
             return False
         return True
 
+
 class StatusesException(JPDContextException):
     SET_MEMBERS = STATUSES
     IMA = "status"
+
 
 class ContextsException(JPDContextException):
     SET_MEMBERS = CONTEXTS
     IMA = "context"
 
+
 class IncludesException(JPDContextException):
     SET_MEMBERS = INCLUDES
     IMA = "include"
+
 
 class IncidentIncludesException(IncludesException):
     SET_MEMBERS = INCIDENT_INCLUDES
     IMA = "incident-include"
 
+
 class ListIncidentIncludesException(IncludesException):
     SET_MEMBERS = INCIDENT_INCLUDES
     IMA = "list-incident-include"
+
 
 # meta class bullshit
 
 for item in dir():
     try:
-        if item.endswith('Exception'):
+        if item.endswith("Exception"):
             item = globals()[item]
             if issubclass(item, JPDContextException):
                 if item.IMA is not None and item.IMA not in CONTEXTS:

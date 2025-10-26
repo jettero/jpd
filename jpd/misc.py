@@ -32,16 +32,16 @@ def aliases_and_colloquialisms(*items, context="user"):
             continue
         elif isinstance(item, str):
             if item in ("all", "any"):
-                if context == 'include':
+                if context == "include":
                     collected.extend(C.INCLUDES)
                 else:
                     collected.append(None)  # signals upper layers to omit the param
                 break
             elif item in C.SELF_AND_TEAM:
-                if context == 'user':
+                if context == "user":
                     collected.append(JPDC.user_id)
                     continue
-                elif context == 'team':
+                elif context == "team":
                     collected.extend(JPDC.team_ids)
                     continue
         collected.append(item)

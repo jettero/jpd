@@ -39,12 +39,12 @@ def make_key(name, *a, **kw):
 def clean_cache(cache_dir=XDG_CACHE_LOCATION, cache_group=None, max_age=300):
     now = datetime.datetime.now().timestamp()
     top = cache_dir
-    log.debug(f'cache_clean: top={top}')
+    log.debug(f"cache_clean: top={top}")
     if cache_group is not None:
         top = os.path.join(top, cache_group)
     for path, _, files in os.walk(top):
         count = len(files)
-        log.debug(f'  path={path}')
+        log.debug(f"  path={path}")
         for file in files:
             fpath = os.path.join(path, file)
             δt = int(now - os.stat(fpath).st_mtime)
@@ -65,10 +65,11 @@ def clean_cache(cache_dir=XDG_CACHE_LOCATION, cache_group=None, max_age=300):
                 log.debug("    removedirs(path=%s):", path)
                 log.debug("      %s", e)
 
+
 def auto_cache(f, *a, cache_dir=XDG_CACHE_LOCATION, cache_group=None, refresh=False, auto_pick=None, **kw):
     # we could optionally clean the cache one query at a time...
     #   clean_cache(cache_dir=cache_dir, cache_group=cache_group)
-    clean_cache(cache_dir=cache_dir) # but why??
+    clean_cache(cache_dir=cache_dir)  # but why??
 
     if cache_group is None:
         cache_group = f.__name__
