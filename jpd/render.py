@@ -59,7 +59,7 @@ def status_tag(val):
 
 
 def priority_tag(incident):
-    pri = incident.get("priority") or {}
+    pri = incident.get("priority", {})
     if isinstance(pri, dict):
         name = pri.get("name")
         if name:
@@ -68,11 +68,11 @@ def priority_tag(incident):
 
 
 def assignee_tag(incident):
-    assignments = incident.get("assignments") or []
+    assignments = incident.get("assignments", [])
     if not assignments:
         return ""
     a0 = assignments[0]
-    u = a0.get("assignee") or {}
+    u = a0.get("assignee", {})
     uname = u.get("summary") or u.get("name") or u.get("email") or u.get("id")
     return f" [{uname}]" if uname else ""
 
@@ -80,7 +80,7 @@ def assignee_tag(incident):
 def service_prefix(thing, show_service_info, incident_service_ref=None):
     if not show_service_info:
         return ""
-    svc = thing.get("service") or {}
+    svc = thing.get("service", {})
     # For alerts, suppress when same as incident service
     sid = svc.get("id") or svc.get("summary") or svc.get("name")
     if incident_service_ref is not None and sid == incident_service_ref:
@@ -174,7 +174,7 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
 
         inc_service_ref = None
         if show_service_info:
-            svc_dict = inc.get("service") or {}
+            svc_dict = inc.get("service", {})
             inc_service_ref = svc_dict.get("id") or svc_dict.get("summary")
         svc_part = service_prefix(inc, show_service_info)
 
@@ -190,7 +190,7 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
 
         # Render alerts only if explicitly requested
         if show_alerts:
-            alerts = inc.get("alerts") or []
+            alerts = inc.get("alerts", [])
             # Prepare safe delimiter-aware prefix for optional trimming
             incident_prefix = summary.strip()
             incident_prefix_lc = incident_prefix.lower()
@@ -198,7 +198,7 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
                 # Only include alert service if explicitly requested AND it differs from incident service
                 asvc_name = ""
                 if show_service_info:
-                    asvc = al.get("service") or {}
+                    asvc = al.get("service", {})
                     alert_service_ref = asvc.get("id") or asvc.get("summary") or asvc.get("name")
                     if alert_service_ref and alert_service_ref != inc_service_ref:
                         asvc_name = asvc.get("summary") or asvc.get("name") or ""
