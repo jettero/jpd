@@ -92,3 +92,27 @@ def test_wrapping_at_small_valid_width(monkeypatch, incident_with_alerts):
     assert "•" in out
     assert "[acknowledged]" in out
     assert "[triggered]" in out
+
+
+def test_alert_wrapping_alignment(monkeypatch, incident_with_alerts, incident_with_long_alert):
+    # Ensure wrapped alert lines align under alert text, not under the bullet
+    monkeypatch.setenv("COLUMNS", "60")
+    # Use dedicated long alert fixture to ensure wrapping occurs
+    data = incident_with_long_alert
+
+    out = incidents_to_text([data], show_service_info=True, show_alerts=True)
+    lines = out.splitlines()
+    # Find the first bullet line
+    bullet_idx = next(i for i,l in enumerate(lines) if "•" in l)
+    first = lines[bullet_idx]
+    # Next line should be a wrapped continuation of the same alert text
+    cont = lines[bullet_idx+1]
+    # First bullet line should begin with a bullet, continuation should not.
+    assert first.strip().startswith("• ")
+    assert not cont.strip().startswith("•")
+    # Continuation should align under the alert text (after bullet and one space),
+    # i.e., continuation is indented exactly two spaces more than the start of the bullet line text.
+    # Current buggy behavior indents under the bullet itself; we assert the correct expectation.
+    bullet_text_col = first.index("• ") + 2
+    cont_first_char_col = len(cont) - len(cont.lstrip(" "))
+    assert cont_first_char_col == bullet_text_col

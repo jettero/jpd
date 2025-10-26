@@ -16,6 +16,7 @@
 - This only prevents third‑party plugin autoload; behavior is unchanged.
 - be sure to use `@pytest.fixture` markers on test data and locate fixtures in t/confest.py
 - try to re-use the fixtures as much as you can rather than always creating new ones.
+- when testing lots of really similar things, be sure to use `@pytest.mark.parametrize`
 
 ## Text rendering
 
