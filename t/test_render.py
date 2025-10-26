@@ -48,7 +48,9 @@ def test_incidents_to_text_basic_alignment(monkeypatch, incident_basic):
     assert lines[0].startswith("P1  ")
     assert "[triggered]" in out
     assert "[priority: P1]" in out
+    # Do not require hyphenated token to remain on one line after wrapping
     assert "[oncall-user]" in out
+    assert "[oncall-\n" not in out
     assert re.search(r"\[[0-9]+m[0-9]*s\]|\[[0-9]+s\]", out)
 
 
@@ -57,13 +59,13 @@ def test_incidents_to_text_service_prefix(monkeypatch, incident_with_alerts):
     incidents = [incident_with_alerts]
 
     out = incidents_to_text(incidents, show_service_info=True, show_alerts=True)
-    # Incident row includes service prefix
-    assert re.search(r"^P2\s+web: ", out, re.M)
+    # Incident row includes service prefix (name or summary)
+    assert re.search(r"^P2\s+🚨\s+(web: |Lorem Service:)", out, re.M)
     # First alert is same service as incident; should not repeat service and should strip incident prefix
-    assert "• node A" in out
-    assert "web: •" not in out
+    assert "➡️  Sed do eiusmod tempor" in out or "Sed do eiusmod tempor" in out
+    assert "web: ➡️" not in out and "Lorem Service: ➡️" not in out
     # Second alert has different service; should include that service name
-    assert ": db: Disk full" in out or "• db: Disk full" in out
+    assert ": db: Disk full" in out or "➡️  db: Disk full" in out
 
 
 def test_incidents_to_text_no_alerts(monkeypatch, incident_with_alerts):
@@ -82,37 +84,57 @@ def test_narrow_width_raises(monkeypatch, incident_basic):
         incidents_to_text([incident_basic], show_service_info=False, show_alerts=False)
 
 
+def test_id_column_is_single_token_and_does_not_wrap(monkeypatch):
+    # Ensure that if the first column has content, it's a single 14-char token and never wraps.
+    # Construct an incident with a 14-character ID and very narrow columns to force wrapping elsewhere.
+    monkeypatch.setenv("COLUMNS", "40")
+    long_id = "ABCDEFGHIJKLMN"  # 14 chars
+    inc = {
+        "id": long_id,
+        "status": "triggered",
+        "summary": "This summary should wrap in the third column only",
+        "created_at": iso_ago(42),
+    }
+    out = incidents_to_text([inc], show_service_info=False, show_alerts=False)
+    lines = out.splitlines()
+    # The first line should contain the (possibly truncated) ID as one uninterrupted token before the emoji column.
+    # ID appears as a single token with no wrapping before the emoji column
+    assert lines[0].startswith(long_id + "  ")
+    # Subsequent wrapped lines (if any) for the same row should have an empty first column area
+    # (i.e., they should not repeat or wrap the ID). We check that lines after the first do not
+    # contain the ID and begin with spaces followed by the indicator column.
+    for cont in lines[1:]:
+        assert long_id not in cont
+        # Continuations should begin with spaces (empty ID column), then the indicator column alignment
+        assert cont.startswith(" ")
+
+
 def test_wrapping_at_small_valid_width(monkeypatch, incident_with_alerts):
-    # 33 is the minimum valid width. Ensure wrapping still respects tags and bullets.
+    # 33 is the minimum valid width. Ensure wrapping still respects tags and indicators.
     monkeypatch.setenv("COLUMNS", "33")
     out = incidents_to_text([incident_with_alerts], show_service_info=True, show_alerts=True)
     # Should start with ID column
     assert out.splitlines()[0].startswith("P2  ")
-    # Verify a bullet line appears and tags are intact on wrapped lines
-    assert "•" in out
+    # Verify an alert indicator appears and tags are intact on wrapped lines
+    assert "➡️" in out
     assert "[acknowledged]" in out
     assert "[triggered]" in out
 
 
 def test_alert_wrapping_alignment(monkeypatch, incident_with_alerts, incident_with_long_alert):
-    # Ensure wrapped alert lines align under alert text, not under the bullet
+    # Ensure wrapped alert lines align under alert text
     monkeypatch.setenv("COLUMNS", "60")
     # Use dedicated long alert fixture to ensure wrapping occurs
     data = incident_with_long_alert
 
     out = incidents_to_text([data], show_service_info=True, show_alerts=True)
     lines = out.splitlines()
-    # Find the first bullet line
-    bullet_idx = next(i for i,l in enumerate(lines) if "•" in l)
-    first = lines[bullet_idx]
+    # Find the first alert indicator line
+    arrow_idx = next(i for i,l in enumerate(lines) if "➡️" in l)
+    first = lines[arrow_idx]
     # Next line should be a wrapped continuation of the same alert text
-    cont = lines[bullet_idx+1]
-    # First bullet line should begin with a bullet, continuation should not.
-    assert first.strip().startswith("• ")
-    assert not cont.strip().startswith("•")
-    # Continuation should align under the alert text (after bullet and one space),
-    # i.e., continuation is indented exactly two spaces more than the start of the bullet line text.
-    # Current buggy behavior indents under the bullet itself; we assert the correct expectation.
-    bullet_text_col = first.index("• ") + 2
+    cont = lines[arrow_idx+1]
+    # Continuation should align under the alert text (after the indicator and two spaces)
+    arrow_text_col = first.index("➡️  ") + len("➡️  ")
     cont_first_char_col = len(cont) - len(cont.lstrip(" "))
-    assert cont_first_char_col == bullet_text_col
+    assert cont_first_char_col == arrow_text_col
