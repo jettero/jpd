@@ -20,6 +20,7 @@ repos:
   rev: 23.9.1
   hooks:
   - id: black
+    args: ['--line-length', '127']
     exclude: 'old/'
 - repo: local
   hooks:
