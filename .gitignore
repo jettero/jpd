@@ -2,6 +2,7 @@ __pycache__
 *.pyc
 *.json
 *.js
+*.html
 file*
 /*.egg-info
 /jpd/version.py
