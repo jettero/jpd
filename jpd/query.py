@@ -245,18 +245,30 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
         dur_secs = _parse_snooze(snooze)
 
         snooze_path = f"incidents/{incident_id}/snooze"
-        # Per PD API, snooze takes duration seconds
         payload = {"duration": int(dur_secs)}
 
         if dry_run:
             return (snooze_path, {"method": "POST", "json": payload})
-        # Snooze requires acknowledged status; send ack first
-        ack_body = {"incident": {"type": "incident", "status": "acknowledged"}}
-        with Spinner(f"PUT {query_path}"):
-            sess.put(query_path, json=ack_body)
+
+        # Only ACK if needed: fetch current status first
+        try:
+            with Spinner(f"GET {query_path}"):
+                get_resp = sess.get(query_path)
+            inc_doc = get_resp.json() if get_resp is not None else {}
+        except Exception:
+            inc_doc = {}
+        current_status = None
+        if isinstance(inc_doc, dict):
+            inc_obj = inc_doc.get("incident")
+            if isinstance(inc_obj, dict):
+                current_status = inc_obj.get("status")
+
+        if current_status != "acknowledged":
+            ack_body = {"incident": {"type": "incident", "status": "acknowledged"}}
+            with Spinner(f"PUT {query_path}"):
+                sess.put(query_path, json=ack_body)
 
         log.debug("acknowledge_incident -> post(%s)", snooze_path)
-        # RestApiV2Client returns an httpx.Response for post/put; parse JSON
         with Spinner(f"POST {snooze_path}"):
             resp = sess.post(snooze_path, json=payload)
         try:
