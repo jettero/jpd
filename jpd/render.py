@@ -8,6 +8,9 @@ import re
 from datetime import datetime, timezone
 from tabulate import tabulate
 
+INCIDENT_SYMBOL = '*'
+ALERT_SYMBOL = '>'
+
 
 def format_timedelta_brief(created_at):
     """Return a compact age from ISO8601 input like 2h5m, 3m10s, 45s.
@@ -105,12 +108,7 @@ def tag_safe_tabulate(rows, **tab_kwargs):
     for row in rows:
         row[2] = re.sub(r'\[[^\]{4,}]\]', _compute_tag_replacement, row[2])
 
-    import pprint
-    pprint.pp(rows, indent=2)
-    print(f"tabulate rows={len(rows)} {tab_kwargs!r}")
     rendered = tabulate(rows, **tab_kwargs)
-    print("/tabulate")
-
     rendered = re.sub(r'\[\x07\d+\]', _fixup_tag_replacement, rendered)
 
     return rendered
@@ -140,7 +138,8 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
     id_width = 14
     gap = 2
     emoji_width = 1
-    summary_width = int(os.environ.get("COLUMNS", 80)) - (id_width + emoji_width + 2)
+    spaces_between_columns = 2
+    summary_width = int(os.environ.get("COLUMNS", 80)) - (id_width + emoji_width + 2*spaces_between_columns)
 
     if summary_width < 30:
         raise ValueError("Display too narrow for text renderer")
@@ -155,7 +154,7 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
         age_tag = ""
         created_at = inc.get("created_at") or inc.get("createdAt")
         if created_at:
-            age_tag = f" [{format_timedelta_brief(created_at)}]"
+            age_tag = f"[{format_timedelta_brief(created_at)}]"
 
         # priority
         pr = priority_tag(inc)
@@ -173,11 +172,11 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
         # In typical cases, the first alert repeats the incident summary. To reduce
         # redundancy, omit the incident summary text when showing alerts; otherwise include it.
         if show_alerts:
-            text = f"{svc_part}{st_tag}{pr}{assignee}{age_tag}".strip()
+            text = f"{svc_part}{st_tag}{pr}{assignee}{age_tag}"
         else:
-            text = f"{svc_part}{summary} {st_tag}{pr}{assignee}{age_tag}".strip()
+            text = f"{svc_part}{summary} {st_tag}{pr}{assignee}{age_tag}"
 
-        rows.append([iid, "🚨", text])
+        rows.append([iid, INCIDENT_SYMBOL, text])
 
         # Render alerts only if explicitly requested
         if show_alerts:
@@ -202,13 +201,13 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
                 aage_tag = ""
                 a_created_at = al.get("created_at") or al.get("createdAt")
                 if a_created_at: # XXX prefixing with spaces:
-                    aage_tag = f" [{format_timedelta_brief(a_created_at)}]"
+                    aage_tag = f"[{format_timedelta_brief(a_created_at)}]"
                 abits = f"{asvc_name}: {atitle_stripped}" if asvc_name else atitle_stripped
                 abits = abits.strip()
                 if not abits:
                     continue
                 atext = f"{abits} {ast_tag}{aage_tag}".strip()
-                rows.append(["", "➡️", atext])
+                rows.append(["", ALERT_SYMBOL, atext])
 
     ##### start of special guard for stupid dumbdumb heads -- do not remove
     for row in rows:
@@ -223,6 +222,5 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
     return tag_safe_tabulate(
         rows,
         tablefmt="plain",
-        colalign=("left", "left", "left"),
         maxcolwidths=[None, None, summary_width],
     )
