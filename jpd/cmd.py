@@ -151,6 +151,13 @@ def main(*args):
     main_parser, *other_parsers = arguments_parser()
     args = main_parser.parse_args(*args)
 
+    # Auto-format: default to text on TTY stdout, json otherwise, unless user specified -f
+    if not any(opt in sys.argv for opt in ("-f", "--format")):
+        if sys.stdout.isatty():
+            args.format = "text"
+            args.textify = True
+        else:
+            args.format = "json"
     # If text format requested, imply --textify for output processing
     if args.format == "text" and not args.textify:
         args.textify = True
@@ -224,7 +231,7 @@ def arguments_parser():
         "--format",
         choices=("json", "text"),
         default="json",
-        help="select output format: 'json' (default) or 'text' (enables --textify)",
+        help="select output format: defaults to 'text' on TTY, 'json' otherwise (enables --textify for text)",
     )
 
     ############ SETUP CMDS
