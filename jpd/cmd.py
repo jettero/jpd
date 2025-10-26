@@ -98,7 +98,7 @@ def print_or_whatever(args, doc):
         if args.textify:
             incidents = scan_for_html(incidents)
 
-        print(incidents_to_text(incidents))
+        print(incidents_to_text(incidents, color=args.color))
         return
 
     if args.textify:
@@ -238,6 +238,12 @@ def arguments_parser():
         choices=("json", "text"),
         default="json",
         help="select output format: defaults to 'text' on TTY, 'json' otherwise (enables --textify for text)",
+    )
+    main_parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="colorize text output: 'auto' on TTY, 'always', or 'never'",
     )
 
     ############ SETUP CMDS

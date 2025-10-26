@@ -4,6 +4,7 @@
 # XXX: This is AI slop cuz I let codex do it fairly unsupervised. it 'works', but it's heinous to read.
 
 import os
+import sys
 import re
 from datetime import datetime, timezone
 from tabulate import tabulate
@@ -137,7 +138,40 @@ def strip_incident_prefix(alert_title, incident_summary):
     return alert_title
 
 
-def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
+def _should_color(color_opt):
+    if color_opt == "always":
+        return True
+    if color_opt == "never":
+        return False
+    try:
+        return sys.stdout.isatty()
+    except Exception:
+        return False
+
+
+def _colorize_text(rendered, enable):
+    if not enable:
+        return rendered
+    # Simple tag matching post-tabulation to avoid breaking wraps
+    def repl_status(m):
+        txt = m.group(0)
+        if txt == "[acknowledged]":
+            return "\x1b[32m" + txt + "\x1b[0m"  # green
+        if txt == "[triggered]":
+            return "\x1b[31m" + txt + "\x1b[0m"  # red
+        return "\x1b[36m" + txt + "\x1b[0m"      # cyan for other [tags]
+
+    import re
+    # colorize status/other tags
+    rendered = re.sub(r"\[[^\]]+\]", repl_status, rendered)
+    # colorize priority tags like [P1], [P2] as purple (magenta)
+    rendered = re.sub(r"\[P[1-9]\]", lambda m: "\x1b[35m" + m.group(0) + "\x1b[0m", rendered)
+    # colorize time-like [7h35m] specifically to brown (use yellow as approx)
+    rendered = re.sub(r"\[(?:\d+[smhd])+\]", lambda m: "\x1b[33m" + m.group(0) + "\x1b[0m", rendered)
+    return rendered
+
+
+def incidents_to_text(incidents, show_service_info=False, show_alerts=True, color="auto"):
     """Render incidents as a two-column plain text table.
 
     - Left column: ID
@@ -229,8 +263,10 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True):
             if item.startswith(" ") or item.endswith(" "):
                 raise Exception("I'm a stupid dumb dumb head")
     ##### end of special guard for stupid dumbdumb heads -- do not remove
-    return tag_safe_tabulate(
+    rendered = tag_safe_tabulate(
         rows,
         tablefmt="plain",
         maxcolwidths=[None, None, summary_width],
     )
+    # apply colors after tabulation/wrapping
+    return _colorize_text(rendered, _should_color(color))
