@@ -329,9 +329,8 @@ def arguments_parser():
         team_ids = args.team_ids
         if user_ids is None and not team_ids:
             user_ids = formatted_list(("mine",))
-        print_or_whatever(
-            args,
-            jpd.query.list_incidents(
+        try:
+            doc = jpd.query.list_incidents(
                 user_ids=user_ids,
                 team_ids=team_ids,
                 since=args.since,
@@ -341,8 +340,42 @@ def arguments_parser():
                 statuses=args.statuses,
                 dry_run=args.dry_run,
                 refresh=args.refresh,
-            ),
-        )
+            )
+            print_or_whatever(args, doc)
+        except Exception as e:
+            # Gracefully render PagerDuty HttpError as structured output
+            try:
+                from pagerduty.errors import HttpError  # type: ignore
+            except Exception:
+                HttpError = None
+            if HttpError is not None and isinstance(e, HttpError):
+                r = getattr(e, 'response', None)
+                status = getattr(r, 'status_code', None) or 0
+                try:
+                    err_json = r.json() if r is not None else None
+                except Exception:
+                    err_json = None
+                if args.format == 'json' and err_json is not None:
+                    print(json_format(args, err_json))
+                else:
+                    # Human-friendly text: first line status + message, then each error on its own line with a bullet
+                    msg = None
+                    errs = []
+                    if err_json and isinstance(err_json, dict):
+                        err_obj = err_json.get('error') or {}
+                        if isinstance(err_obj, dict):
+                            msg = err_obj.get('message') or err_json.get('message')
+                            errors_field = err_obj.get('errors')
+                            if isinstance(errors_field, (list, tuple)):
+                                errs = [str(x) for x in errors_field if x is not None]
+                    if not msg:
+                        msg = str(e)
+                    print(f"Error: {status} {msg}")
+                    bullet = "•"
+                    for item in errs:
+                        print(f"{bullet} {item}")
+                sys.exit(2)
+            raise
 
     cmd_parsers[-1].set_defaults(func=_li_entrypoint)
 
