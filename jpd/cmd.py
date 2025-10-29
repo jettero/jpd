@@ -259,7 +259,7 @@ def arguments_parser():
         type=str,
         nargs="*",
         action=MyReplaceDefaultExtend,
-        default=formatted_list(("mine",)),
+        default=None,
         help=(
             "limit to incidents assigned to these users; accepts keywords like "
             "'me'/'mine'/'ours'. Note: a bare -u clears the default of 'mine' so "
@@ -323,11 +323,28 @@ def arguments_parser():
         ),
         help="match incidents with these statuses -- or omit args for all",
     )
-    cmd_parsers[-1].set_defaults(
-        func=_MAP_QUERY(
-            jpd.query.list_incidents, user_ids="", team_ids="", since="", until="", with_alerts="", include="", statuses=""
+    def _li_entrypoint(args):
+        # Default behavior: if neither -u nor -t provided, set users to ["mine"]
+        user_ids = args.user_ids
+        team_ids = args.team_ids
+        if user_ids is None and not team_ids:
+            user_ids = formatted_list(("mine",))
+        print_or_whatever(
+            args,
+            jpd.query.list_incidents(
+                user_ids=user_ids,
+                team_ids=team_ids,
+                since=args.since,
+                until=args.until,
+                with_alerts=args.with_alerts,
+                include=args.include,
+                statuses=args.statuses,
+                dry_run=args.dry_run,
+                refresh=args.refresh,
+            ),
         )
-    )
+
+    cmd_parsers[-1].set_defaults(func=_li_entrypoint)
 
     ############ FETCH INCIDENT
     cmd_parsers.append(

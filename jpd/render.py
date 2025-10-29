@@ -263,6 +263,11 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True, colo
             if item.startswith(" ") or item.endswith(" "):
                 raise Exception("I'm a stupid dumb dumb head")
     ##### end of special guard for stupid dumbdumb heads -- do not remove
+
+    # No rows? Avoid tabulate() IndexError and show a friendly message.
+    if not rows:
+        return "All clear??"
+
     rendered = tag_safe_tabulate(
         rows,
         tablefmt="plain",
