@@ -298,6 +298,160 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
     return {"_ok": True, "_msg": f"[ok] acknowledged {incident_id}"}
 
 
+def merge_incidents(parent_id, source_ids, sess=None, dry_run=False, **_params):
+    """PUT /incidents/{parent_id}/merge — fold source_ids into parent."""
+    if sess is None:
+        sess = get_session()
+    if isinstance(source_ids, str):
+        source_ids = [source_ids]
+    source_ids = [s for s in source_ids if s and s != parent_id]
+    query_path = f"incidents/{parent_id}/merge"
+    body = {"source_incidents": [{"id": s, "type": "incident_reference"} for s in source_ids]}
+    if dry_run:
+        return (query_path, {"method": "PUT", "json": body})
+    with Spinner(f"PUT {query_path}"):
+        resp = sess.put(query_path, json=body)
+    try:
+        doc = resp.json()
+    except Exception:
+        doc = {}
+    inc = doc.get("incident") if isinstance(doc, dict) else None
+    if isinstance(inc, dict) and inc.get("id"):
+        return inc
+    return {"_ok": True, "_msg": f"[ok] merged {len(source_ids)} into {parent_id}"}
+
+
+def move_alert(alert_id, dest_incident_id, source_incident_id, sess=None, dry_run=False, **_params):
+    """PUT /incidents/{dest}/alerts/{alert_id} — reparent alert to dest incident."""
+    if sess is None:
+        sess = get_session()
+    query_path = f"incidents/{dest_incident_id}/alerts/{alert_id}"
+    body = {"alert": {"incident": {"id": dest_incident_id, "type": "incident_reference"}}}
+    if dry_run:
+        return (query_path, {"method": "PUT", "json": body, "source": source_incident_id})
+    with Spinner(f"PUT {query_path}"):
+        resp = sess.put(query_path, json=body)
+    try:
+        doc = resp.json()
+    except Exception:
+        doc = {}
+    alert = doc.get("alert") if isinstance(doc, dict) else None
+    if isinstance(alert, dict) and alert.get("id"):
+        return alert
+    return {"_ok": True, "_msg": f"[ok] moved alert {alert_id} -> {dest_incident_id}"}
+
+
+def update_incident_title(incident_id, title, sess=None, dry_run=False, **_params):
+    """PUT /incidents/{id} — set incident title."""
+    if sess is None:
+        sess = get_session()
+    query_path = f"incidents/{incident_id}"
+    body = {"incident": {"type": "incident_reference", "title": title}}
+    if dry_run:
+        return (query_path, {"method": "PUT", "json": body})
+    with Spinner(f"PUT {query_path}"):
+        resp = sess.put(query_path, json=body)
+    try:
+        doc = resp.json()
+    except Exception:
+        doc = {}
+    inc = doc.get("incident") if isinstance(doc, dict) else None
+    if isinstance(inc, dict) and inc.get("id"):
+        return inc
+    return {"_ok": True, "_msg": f"[ok] retitled {incident_id}"}
+
+
+def create_incident(title, service_id, sess=None, dry_run=False, urgency="low", **_params):
+    """POST /incidents — create a stub incident under the given service."""
+    if sess is None:
+        sess = get_session()
+    query_path = "incidents"
+    body = {
+        "incident": {
+            "type": "incident",
+            "title": title,
+            "service": {"id": service_id, "type": "service_reference"},
+            "urgency": urgency,
+        }
+    }
+    if dry_run:
+        return (query_path, {"method": "POST", "json": body})
+    with Spinner(f"POST {query_path}"):
+        resp = sess.post(query_path, json=body, headers={"From": JPDC.email or ""})
+    try:
+        doc = resp.json()
+    except Exception:
+        doc = {}
+    return doc.get("incident") if isinstance(doc, dict) else {"_ok": True, "_msg": "[ok] created"}
+
+
+def list_my_oncall_until(user_id=None, lookahead_hours=36, sess=None, _now=None):
+    """GET /oncalls — return seconds-from-now until the current shift's end.
+
+    Picks the on-call entry whose [start, end) currently contains 'now'; if
+    multiple overlap, returns the **earliest** end (next handoff).
+    Returns (seconds_until_end, end_iso, schedule_summary) or (None, None, None)
+    if no current shift can be resolved within lookahead_hours.
+
+    _now is injectable for tests.
+    """
+    from datetime import datetime, timedelta, timezone
+    if sess is None:
+        sess = get_session()
+    if user_id is None:
+        user_id = JPDC.user_id
+    now = _now or datetime.now(timezone.utc)
+    until = now + timedelta(hours=lookahead_hours)
+
+    def _z(dt):
+        return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    params = {
+        "user_ids[]": [user_id],
+        "since": _z(now),
+        "until": _z(until),
+        "earliest": "true",
+    }
+    query_path = "oncalls"
+    with Spinner(f"GET {query_path}"):
+        entries = sess.list_all(query_path, params=params)
+
+    best_end = None
+    best_summary = None
+    for e in entries or ():
+        start = _parse_iso(e.get("start"))
+        end = _parse_iso(e.get("end"))
+        if start is None or end is None:
+            continue
+        if start <= now < end:
+            if best_end is None or end < best_end:
+                best_end = end
+                sched = e.get("schedule") or {}
+                best_summary = sched.get("summary") or sched.get("id")
+
+    if best_end is None:
+        return (None, None, None)
+    secs = int((best_end - now).total_seconds())
+    return (secs, _z(best_end), best_summary)
+
+
+def _parse_iso(s):
+    """Tolerant ISO8601 → tz-aware datetime, or None."""
+    from datetime import datetime, timezone
+    if not s:
+        return None
+    s = s.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def duration_parse(spec: str) -> int:
     """Parse a duration string into seconds.
 

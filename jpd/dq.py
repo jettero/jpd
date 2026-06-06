@@ -5,7 +5,7 @@ import logging
 import hashlib
 import datetime
 import os
-import simplejson as json
+import json
 import xdg
 
 log = logging.getLogger("jpd.dq")
@@ -17,11 +17,11 @@ KEY_SPLIT = 4
 def min_dump(x):
     # NOTE: we want this to crash if one of the args is an obj
     #
-    # In [3]: import simplejson as json
+    # In [3]: import json
     #    ...: json.dumps({'one': [ ['thing', 'leads'], ['to', 'another'] ], 'two': 2, 'aaa': 3, 'zzz': 4}, sort_keys=True, ensure_ascii=True, indent=None, separators=',:')
     # Out[3]: '{"aaa":3,"one":[["thing","leads"],["to","another"]],"two":2,"zzz":4}'
     #
-    return json.dumps(x, sort_keys=True, ensure_ascii=True, indent=None, separators=",:")
+    return json.dumps(x, sort_keys=True, ensure_ascii=True, indent=None, separators=(",", ":"))
 
 
 def make_key(name, *a, **kw):

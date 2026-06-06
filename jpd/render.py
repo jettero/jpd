@@ -171,25 +171,14 @@ def _colorize_text(rendered, enable):
     return rendered
 
 
-def incidents_to_text(incidents, show_service_info=False, show_alerts=True, color="auto"):
-    """Render incidents as a two-column plain text table.
+def build_incident_rows(incidents, show_service_info=False, show_alerts=True, expanded=None):
+    """Return [(id, symbol, text, meta), ...] before tabulation/wrapping.
 
-    - Left column: ID
-    - Right column: wrapped summary with status/priority/assignee (and optional team)
-    - Respects terminal width via COLUMNS env (defaults to 80)
-    - Avoids breaking words inside square brackets
+    `meta` is a dict {kind, iid, aid, service_id, title} for downstream consumers
+    (e.g. the monitor TUI) that need to act on a row. expanded is a set of
+    incident ids whose alerts should be rendered; None means show all.
     """
-    id_width = 14
-    gap = 2
-    emoji_width = 1
-    spaces_between_columns = 2
-    summary_width = int(os.environ.get("COLUMNS", 80)) - (id_width + emoji_width + 2*spaces_between_columns)
-
-    if summary_width < 30:
-        raise ValueError("Display too narrow for text renderer")
-
     rows = []
-
     for inc in incidents:
         iid = inc.get("id", "")
         st = inc.get("status", "")
@@ -215,15 +204,20 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True, colo
         summary = inc.get("title") or inc.get("summary") or ""
         # In typical cases, the first alert repeats the incident summary. To reduce
         # redundancy, omit the incident summary text when showing alerts; otherwise include it.
-        if show_alerts:
-            text = f"{svc_part}{st_tag}{pr}{assignee}{age_tag}"
+        show_this_inc_alerts = show_alerts and (expanded is None or iid in expanded)
+        if show_this_inc_alerts:
+            # If the alerts will appear right below us they typically repeat
+            # the incident summary; omit it on the header row to reduce noise.
+            text = f"{svc_part}{st_tag}{pr}{assignee}{age_tag}".strip()
         else:
-            text = f"{svc_part}{summary} {st_tag}{pr}{assignee}{age_tag}"
+            text = f"{svc_part}{summary} {st_tag}{pr}{assignee}{age_tag}".strip()
 
-        rows.append([iid, INCIDENT_SYMBOL, text])
+        inc_meta = {"kind": "incident", "iid": iid, "aid": None,
+                    "service_id": inc_service_ref, "title": summary}
+        rows.append([iid, INCIDENT_SYMBOL, text, inc_meta])
 
         # Render alerts only if explicitly requested
-        if show_alerts:
+        if show_this_inc_alerts:
             alerts = inc.get("alerts", [])
             # Prepare safe delimiter-aware prefix for optional trimming
             incident_prefix = summary.strip()
@@ -251,7 +245,33 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True, colo
                 if not abits:
                     continue
                 atext = f"{abits} {ast_tag}{aage_tag}".strip()
-                rows.append(["", ALERT_SYMBOL, atext])
+                a_meta = {"kind": "alert", "iid": iid,
+                          "aid": al.get("id"),
+                          "service_id": (al.get("service") or {}).get("id"),
+                          "title": atitle}
+                rows.append(["", ALERT_SYMBOL, atext, a_meta])
+
+    return rows
+
+
+def incidents_to_text(incidents, show_service_info=False, show_alerts=True, color="auto"):
+    """Render incidents as a two-column plain text table.
+
+    - Left column: ID
+    - Right column: wrapped summary with status/priority/assignee (and optional team)
+    - Respects terminal width via COLUMNS env (defaults to 80)
+    - Avoids breaking words inside square brackets
+    """
+    id_width = 14
+    emoji_width = 1
+    spaces_between_columns = 2
+    summary_width = int(os.environ.get("COLUMNS", 80)) - (id_width + emoji_width + 2*spaces_between_columns)
+
+    if summary_width < 30:
+        raise ValueError("Display too narrow for text renderer")
+
+    full_rows = build_incident_rows(incidents, show_service_info=show_service_info, show_alerts=show_alerts)
+    rows = [row[:3] for row in full_rows]
 
     ##### start of special guard for stupid dumbdumb heads -- do not remove
     for row in rows:
@@ -275,3 +295,9 @@ def incidents_to_text(incidents, show_service_info=False, show_alerts=True, colo
     )
     # apply colors after tabulation/wrapping
     return _colorize_text(rendered, _should_color(color))
+
+
+def colorize_one(text):
+    """Apply the same tag-coloring rules as text rendering, returning an
+    ANSI-escaped string. Use Text.from_ansi() to feed into Rich/Textual."""
+    return _colorize_text(text, True)

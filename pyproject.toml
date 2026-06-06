@@ -12,10 +12,13 @@ dependencies = [
     "pagerduty",
     "tabulate",
     "dateparser",
-    "simplejson",
     "xdg",
     "bs4",
+    "textual",
 ]
+
+[project.optional-dependencies]
+dev = ["textual-dev", "pytest"]
 
 [build-system]
 requires = ["setuptools", "setuptools_scm[toml]"]
@@ -31,4 +34,4 @@ jpd = "jpd.cmd:entry_point"
 Github = "https://github.com/jettero/jpd.git"
 
 [tool.setuptools]
-packages = ["jpd"]
+packages = ["jpd", "jpd.monitor"]

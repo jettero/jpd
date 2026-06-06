@@ -6,7 +6,7 @@ import re
 import argparse
 import subprocess
 import logging
-import simplejson as json
+import json
 
 import jpd.query
 import jpd.const
@@ -34,7 +34,7 @@ def json_format(args, doc):
     else:
         # we take 0 to mean: one line, minified, so we set the separators to
         # have no spaces
-        params["separators"] = ",:"
+        params["separators"] = (",", ":")
     return json.dumps(doc, **params)
 
 
@@ -450,5 +450,18 @@ def arguments_parser():
     )
     # 'triggered' is not an argument on this subparser; do not map it here
     cmd_parsers[-1].set_defaults(func=_MAP_QUERY(jpd.query.acknowledge_incident, "incident_id", snooze=""))
+
+    ############ MONITOR (interactive TUI)
+    cmd_parsers.append(
+        subs.add_parser(
+            "monitor",
+            aliases=["mon"],
+            help="interactive on-call TUI (live-polling, ack/snooze/merge/move/edit-title)",
+        )
+    )
+    def _monitor_entrypoint(_args):
+        import jpd.monitor as M
+        M.run()
+    cmd_parsers[-1].set_defaults(func=_monitor_entrypoint)
 
     return main_parser, *cmd_parsers
