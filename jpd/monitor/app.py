@@ -165,7 +165,18 @@ class MonitorApp(App):
         log.info("poll: got %d incidents", len(incidents or ()))
         self.incidents = incidents or []
         if self.auto_ack:
-            await self._auto_ack_sweep(self.incidents)
+            acked = await self._auto_ack_sweep(self.incidents)
+            if acked:
+                # We just mutated server state; the list we have is now
+                # stale. Refetch so the publish below carries the new
+                # statuses (otherwise the UI shows the just-acked PD as
+                # still triggered until the next poll cycle).
+                log.debug("auto-acked %d — refetching to refresh local state", acked)
+                try:
+                    incidents = await A.fetch_incidents(kw, refresh=True)
+                    self.incidents = incidents or []
+                except Exception as e:
+                    log.exception("post-auto-ack refetch failed: %s", e)
         try:
             self.data_changed.publish(None)
             log.debug("data_changed signal published")
@@ -180,7 +191,7 @@ class MonitorApp(App):
         return max(60, min(self.eos_secs, self.auto_ack_cap_seconds))
 
     async def _auto_ack_sweep(self, incidents):
-        """Ack every currently-triggered incident.
+        """Ack every currently-triggered incident. Returns the count.
 
         Idempotency is provided by the status check below — only triggered
         incidents are touched. We must NOT skip iids we've "seen before":
@@ -188,6 +199,10 @@ class MonitorApp(App):
         new alert fires under it, or when a snooze expires. The earlier
         "only_new" filter was a bug — a re-fired incident would be skipped
         forever, leading to PagerDuty escalating five minutes later.
+
+        Caller responsibility: refetch after this returns >0 so the local
+        `self.incidents` reflects the new server-side statuses; otherwise
+        the UI renders the pre-ack list and looks like nothing happened.
         """
         secs = self._auto_ack_snooze_seconds()
         log.info("auto-ack sweep: snooze_secs=%s", secs)
@@ -217,6 +232,7 @@ class MonitorApp(App):
             self.notify(f"auto-ack: {acked} PD(s) — {window}", timeout=5)
         else:
             log.debug("auto-ack sweep: nothing to do")
+        return acked
 
     # ---- EOS -------------------------------------------------------------
 
