@@ -56,6 +56,32 @@ class Spinner:
         return False
 
 
+def list_incident_notes(incident_id, sess=None, dry_run=False, refresh=False, **params):
+    """GET /incidents/{id}/notes — return the chronological list of notes
+    attached to an incident. PagerDuty's automation, on-call humans, and
+    integrations all write here; the monitor wants to surface them."""
+    query_path = f"incidents/{incident_id}/notes"
+    if sess is None:
+        sess = get_session()
+    if dry_run:
+        return (query_path, params)
+    try:
+        with Spinner(f"GET {query_path}"):
+            return auto_cache(
+                sess.list_all,
+                query_path,
+                params=params,
+                cache_group="list_incident_notes",
+                refresh=refresh,
+            )
+    except PDClientError as e:
+        status = getattr(e, "status", None) or getattr(getattr(e, "response", None), "status_code", None)
+        if status == 403:
+            log.info("ignoring 403 for %s", query_path)
+            return list()
+        raise
+
+
 def list_alerts(incident_id, include=C.LIST_ALERTS_INCLUDES, sess=None, dry_run=False, refresh=False, **params):
     query_path = f"incidents/{incident_id}/alerts"
 

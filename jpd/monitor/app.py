@@ -49,9 +49,15 @@ class MonitorApp(App):
     /* Full-screen content widgets — leave a blank line under the Header
        so the first row doesn't smoosh against it. */
     #home-table { height: 1fr; margin-top: 1; }
-    #incident-alerts { height: 1fr; margin-top: 1; }
+    #incident-alerts { height: 1fr; }
     #alert-scroll { height: 1fr; margin-top: 1; }
     #alert-body { padding: 0 1; }
+    /* InfoScreen — single scrollable column carrying both the incident
+       summary block and the notes. Built that way so small terminals
+       (tmux panes under ~25 rows) don't deadlock between competing
+       fixed-height widgets. */
+    #info-scroll { height: 1fr; margin-top: 1; }
+    #info-body { padding: 0 1; }
     """
 
     BINDINGS = [

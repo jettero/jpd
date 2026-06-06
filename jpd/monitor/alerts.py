@@ -37,11 +37,17 @@ def _wrap_width():
 
 
 class AlertRow:
-    """Meta for one selectable alert container."""
+    """Meta for one selectable row.
 
-    __slots__ = ("aid", "title", "service_id", "status")
+    kind="alert" — a real alert (aid/title/service/status populated).
+    kind="notes" — synthetic row at the top that drills into the incident
+                   info screen (summary + notes). Other fields are None.
+    """
 
-    def __init__(self, aid, title, service_id, status):
+    __slots__ = ("kind", "aid", "title", "service_id", "status")
+
+    def __init__(self, kind, aid, title, service_id, status):
+        self.kind = kind
         self.aid = aid
         self.title = title
         self.service_id = service_id
@@ -79,13 +85,25 @@ class AlertsTable(DataTable):
         self.rows_meta = []
         if not incident:
             return
+
+        # Synthetic first row — drills into the InfoScreen (summary + notes).
+        # Always present so the existence of an info view is discoverable.
+        info_leader = f"{' ' * ID_COL}{' ' * GAP_AFTER_ID}i{' ' * GAP_AFTER_SYM}"
+        info_text = Text(info_leader)
+        info_text.append("[notes]", style="bold magenta")
+        info_text.append("   ", style="")
+        info_text.append("incident summary + notes", style="dim")
+        self.add_row(info_text, height=1)
+        self.rows_meta.append(AlertRow(
+            kind="notes", aid=None, title="notes", service_id=None, status=None,
+        ))
+
         all_rows = build_incident_rows(
             [incident],
             show_service_info=self.show_service_info,
             show_alerts=True,
             expanded=None,
         )
-        # Skip the incident-header row — it's the first one. Only alerts remain.
         wrap_w = _wrap_width()
         alerts_by_id = {a.get("id"): a for a in incident.get("alerts") or ()}
         for _iid, symbol, text, meta in all_rows:
@@ -107,6 +125,7 @@ class AlertsTable(DataTable):
             self.add_row(styled, height=len(lines))
             alert = alerts_by_id.get(meta.get("aid")) or {}
             self.rows_meta.append(AlertRow(
+                kind="alert",
                 aid=meta.get("aid") or "",
                 title=meta.get("title") or "",
                 service_id=meta.get("service_id") or "",

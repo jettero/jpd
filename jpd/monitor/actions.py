@@ -39,3 +39,7 @@ async def resolve_eos(user_id=None, lookahead_hours=36):
 
 async def fetch_incidents(filter_kwargs, refresh=True):
     return await _run(Q.list_incidents, **filter_kwargs, refresh=refresh, with_alerts=True)
+
+
+async def fetch_notes(incident_id, refresh=True):
+    return await _run(Q.list_incident_notes, incident_id, refresh=refresh)

@@ -10,6 +10,7 @@ def test_imports():
     import jpd.monitor.home             # noqa: F401
     import jpd.monitor.incident         # noqa: F401
     import jpd.monitor.alert            # noqa: F401
+    import jpd.monitor.info             # noqa: F401
     import jpd.monitor.alerts           # noqa: F401
     import jpd.monitor.incidents        # noqa: F401
     import jpd.monitor.modals           # noqa: F401

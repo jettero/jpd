@@ -21,7 +21,8 @@ class IncidentScreen(Screen):
 
     BINDINGS = [
         # Navigation — Esc no longer means back (it opens the command
-        # palette). Use ← or h to back out.
+        # palette). Use ← or h to back out. The first row in the alerts
+        # table is a synthetic "[notes]" row that drills into InfoScreen.
         Binding("right", "drill_in", "Drill in", show=False),
         Binding("l", "drill_in", "Drill in", show=False),
         Binding("left", "back", "Back"),
@@ -84,12 +85,18 @@ class IncidentScreen(Screen):
         log.debug("IncidentScreen refresh iid=%s alerts=%d", self.iid, n_alerts)
         self.table.refresh_from(inc)
 
+
     # ---- navigation ------------------------------------------------------
 
     def action_drill_in(self):
         row = self.table.current_row()
         if row is None:
             log.debug("incident.drill_in: no cursor")
+            return
+        if row.kind == "notes":
+            from jpd.monitor.info import InfoScreen
+            log.info("incident.drill_in -> InfoScreen iid=%s", self.iid)
+            self.app.push_screen(InfoScreen(self.iid))
             return
         log.info("incident.drill_in -> AlertScreen iid=%s aid=%s", self.iid, row.aid)
         from jpd.monitor.alert import AlertScreen
