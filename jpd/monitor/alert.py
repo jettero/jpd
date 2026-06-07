@@ -28,12 +28,13 @@ class AlertScreen(Screen):
         # Right/l/Enter are no-ops on the alert screen — nothing deeper.
         # Actions
         Binding("a", "ack_parent", "Ack incident"),
+        Binding("R", "resolve_parent", "Resolve"),
         Binding("s", "snooze_custom_parent", "Snooze…"),
         Binding("S", "snooze_eos_parent", "Snooze→EOS"),
         Binding("M", "move_alert", "Move alert"),
         # Scrolling — VerticalScroll handles PgUp/PgDn/Home/End by default
         Binding("question_mark", "help", "Help", show=False),
-        Binding("escape", "command_palette", show=False),
+        Binding("escape", "app.command_palette", show=False),
     ]
 
     def __init__(self, iid, aid):
@@ -129,6 +130,19 @@ class AlertScreen(Screen):
             await A.ack(self.iid)
         except Exception as e:
             self.app.notify(f"ack: {e}", severity="error")
+        await self.app._do_poll()
+
+    def action_resolve_parent(self):
+        self._do_resolve_parent()
+
+    @work
+    async def _do_resolve_parent(self):
+        try:
+            await A.resolve(self.iid)
+            self.app.notify(f"resolved {self.iid}")
+        except Exception as e:
+            log.exception("alert.resolve %s failed: %s", self.iid, e)
+            self.app.notify(f"resolve: {e}", severity="error")
         await self.app._do_poll()
 
     def action_snooze_eos_parent(self):

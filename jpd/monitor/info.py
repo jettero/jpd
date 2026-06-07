@@ -33,7 +33,7 @@ class InfoScreen(Screen):
         Binding("left", "back", "Back"),
         Binding("h", "back", "Back", show=False),
         Binding("question_mark", "help", "Help", show=False),
-        Binding("escape", "command_palette", show=False),
+        Binding("escape", "app.command_palette", show=False),
         # Right/l/Enter are no-ops here — nothing to drill into.
     ]
 

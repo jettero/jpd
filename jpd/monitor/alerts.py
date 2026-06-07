@@ -76,11 +76,16 @@ class AlertsTable(DataTable):
             self.add_column("Alert", width=_total_width())
             self._cols_added = True
 
-    def refresh_from(self, incident):
-        """incident is a single incident dict; we render its alerts only."""
-        log.debug("AlertsTable refresh_from: incident=%s alerts=%d",
+    def refresh_from(self, incident, sort_mode="newest"):
+        """incident is a single incident dict; we render its alerts only.
+
+        sort_mode: "newest" (default — most recent created_at first),
+                   "oldest", or "status" (triggered first, then ack).
+        """
+        log.debug("AlertsTable refresh_from: incident=%s alerts=%d sort=%s",
                   incident.get("id") if incident else None,
-                  len(incident.get("alerts") or ()) if incident else 0)
+                  len(incident.get("alerts") or ()) if incident else 0,
+                  sort_mode)
         self.clear()
         self.rows_meta = []
         if not incident:
@@ -98,8 +103,9 @@ class AlertsTable(DataTable):
             kind="notes", aid=None, title="notes", service_id=None, status=None,
         ))
 
+        sorted_incident = _with_sorted_alerts(incident, sort_mode)
         all_rows = build_incident_rows(
-            [incident],
+            [sorted_incident],
             show_service_info=self.show_service_info,
             show_alerts=True,
             expanded=None,
@@ -163,3 +169,48 @@ class AlertsTable(DataTable):
         screen = self.screen
         if screen is not None and hasattr(screen, "action_back"):
             screen.action_back()
+
+
+SORT_MODES = ("newest", "oldest", "status")
+
+# triggered first, then acknowledged, then everything else
+_STATUS_ORDER = {"triggered": 0, "acknowledged": 1, "resolved": 2}
+
+
+def _with_sorted_alerts(incident, mode):
+    """Return a shallow copy of the incident with its alerts reordered.
+
+    We copy because the dict comes from the App's polled list — sorting
+    in place would mutate shared state.
+    """
+    alerts = list(incident.get("alerts") or ())
+    if not alerts:
+        return incident
+    if mode == "oldest":
+        alerts.sort(key=lambda a: a.get("created_at") or "")
+    elif mode == "status":
+        alerts.sort(key=lambda a: (
+            _STATUS_ORDER.get(a.get("status", ""), 99),
+            # tiebreak with newest-first so within a status group recent wins
+            -_iso_to_sortable(a.get("created_at")),
+        ))
+    else:  # newest (default)
+        alerts.sort(key=lambda a: a.get("created_at") or "", reverse=True)
+    new_inc = dict(incident)
+    new_inc["alerts"] = alerts
+    return new_inc
+
+
+def _iso_to_sortable(iso):
+    """Cheap iso-string → comparable float for tiebreak only; bad/missing
+    strings sort as 0 so they tie."""
+    if not iso:
+        return 0.0
+    try:
+        from datetime import datetime
+        s = iso.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        return 0.0

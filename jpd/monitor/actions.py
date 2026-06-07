@@ -13,6 +13,10 @@ async def ack(incident_id):
     return await _run(Q.acknowledge_incident, incident_id)
 
 
+async def resolve(incident_id):
+    return await _run(Q.resolve_incident, incident_id)
+
+
 async def snooze(incident_id, seconds):
     return await _run(Q.acknowledge_incident, incident_id, snooze=int(seconds))
 

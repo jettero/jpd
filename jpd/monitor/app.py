@@ -167,11 +167,9 @@ class MonitorApp(App):
         if self.auto_ack:
             acked = await self._auto_ack_sweep(self.incidents)
             if acked:
-                # We just mutated server state; the list we have is now
-                # stale. Refetch so the publish below carries the new
-                # statuses (otherwise the UI shows the just-acked PD as
-                # still triggered until the next poll cycle).
-                log.debug("auto-acked %d — refetching to refresh local state", acked)
+                # We mutated server state; the local list is stale. Refetch
+                # so the UI shows what's actually true. Acked means acked.
+                log.debug("auto-acked %d — refetching", acked)
                 try:
                     incidents = await A.fetch_incidents(kw, refresh=True)
                     self.incidents = incidents or []
@@ -200,9 +198,9 @@ class MonitorApp(App):
         "only_new" filter was a bug — a re-fired incident would be skipped
         forever, leading to PagerDuty escalating five minutes later.
 
-        Caller responsibility: refetch after this returns >0 so the local
-        `self.incidents` reflects the new server-side statuses; otherwise
-        the UI renders the pre-ack list and looks like nothing happened.
+        Caller responsibility: refetch after this returns >0. If we
+        acked, the UI must show acked. There's no "skip the refetch to
+        save a call" — that's how the regression keeps coming back.
         """
         secs = self._auto_ack_snooze_seconds()
         log.info("auto-ack sweep: snooze_secs=%s", secs)

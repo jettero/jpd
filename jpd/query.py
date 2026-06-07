@@ -324,6 +324,31 @@ def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=Fal
     return {"_ok": True, "_msg": f"[ok] acknowledged {incident_id}"}
 
 
+def resolve_incident(incident_id, sess=None, dry_run=False, **_params):
+    """PUT /incidents/{id} — set status=resolved.
+
+    PagerDuty also auto-resolves when every alert under an incident moves
+    to resolved, but the human-driven path is to resolve the incident
+    itself directly (e.g. after fixing the underlying issue).
+    """
+    if sess is None:
+        sess = get_session()
+    query_path = f"incidents/{incident_id}"
+    body = {"incident": {"type": "incident", "status": "resolved"}}
+    if dry_run:
+        return (query_path, {"method": "PUT", "json": body})
+    with Spinner(f"PUT {query_path}"):
+        resp = sess.put(query_path, json=body)
+    try:
+        doc = resp.json()
+    except Exception:
+        doc = {}
+    inc = doc.get("incident") if isinstance(doc, dict) else None
+    if isinstance(inc, dict) and inc.get("id"):
+        return inc
+    return {"_ok": True, "_msg": f"[ok] resolved {incident_id}"}
+
+
 def merge_incidents(parent_id, source_ids, sess=None, dry_run=False, **_params):
     """PUT /incidents/{parent_id}/merge — fold source_ids into parent."""
     if sess is None:

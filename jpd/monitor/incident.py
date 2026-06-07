@@ -29,18 +29,21 @@ class IncidentScreen(Screen):
         Binding("h", "back", "Back", show=False),
         # Actions
         Binding("a", "ack", "Ack"),
+        Binding("R", "resolve", "Resolve"),
         Binding("s", "snooze_custom", "Snooze…"),
         Binding("S", "snooze_eos", "Snooze→EOS"),
         Binding("e", "edit_title", "Edit title"),
         Binding("M", "move_alert", "Move alert"),
+        Binding("o", "cycle_sort", "Sort"),
         Binding("question_mark", "help", "Help", show=False),
-        Binding("escape", "command_palette", show=False),
+        Binding("escape", "app.command_palette", show=False),
     ]
 
     def __init__(self, iid):
         super().__init__()
         self.iid = iid
         self.table = AlertsTable(id="incident-alerts")
+        self.sort_mode = "newest"
         self._subscribed = False
 
     def compose(self) -> ComposeResult:
@@ -82,8 +85,9 @@ class IncidentScreen(Screen):
                 log.exception("pop_screen failed: %s", e)
             return
         n_alerts = len(inc.get("alerts") or ())
-        log.debug("IncidentScreen refresh iid=%s alerts=%d", self.iid, n_alerts)
-        self.table.refresh_from(inc)
+        log.debug("IncidentScreen refresh iid=%s alerts=%d sort=%s",
+                  self.iid, n_alerts, self.sort_mode)
+        self.table.refresh_from(inc, sort_mode=self.sort_mode)
 
 
     # ---- navigation ------------------------------------------------------
@@ -109,6 +113,14 @@ class IncidentScreen(Screen):
         log.info("incident.back from iid=%s", self.iid)
         self.app.pop_screen()
 
+    def action_cycle_sort(self):
+        from jpd.monitor.alerts import SORT_MODES
+        i = SORT_MODES.index(self.sort_mode) if self.sort_mode in SORT_MODES else 0
+        self.sort_mode = SORT_MODES[(i + 1) % len(SORT_MODES)]
+        log.info("incident.sort -> %s", self.sort_mode)
+        self.app.notify(f"sort: {self.sort_mode}", timeout=2)
+        self._refresh_from_app()
+
     # ---- incident actions ------------------------------------------------
 
     def action_ack(self):
@@ -120,6 +132,19 @@ class IncidentScreen(Screen):
             await A.ack(self.iid)
         except Exception as e:
             self.app.notify(f"ack: {e}", severity="error")
+        await self.app._do_poll()
+
+    def action_resolve(self):
+        self._do_resolve()
+
+    @work
+    async def _do_resolve(self):
+        try:
+            await A.resolve(self.iid)
+            self.app.notify(f"resolved {self.iid}")
+        except Exception as e:
+            log.exception("incident.resolve %s failed: %s", self.iid, e)
+            self.app.notify(f"resolve: {e}", severity="error")
         await self.app._do_poll()
 
     def action_snooze_eos(self):

@@ -27,6 +27,7 @@ class HomeScreen(Screen):
         # Marking + actions
         Binding("space", "mark", "Mark", show=True),
         Binding("a", "ack", "Ack"),
+        Binding("R", "resolve", "Resolve"),
         Binding("s", "snooze_custom", "Snooze…"),
         Binding("S", "snooze_eos", "Snooze→EOS"),
         Binding("m", "merge", "Merge"),
@@ -37,7 +38,7 @@ class HomeScreen(Screen):
         Binding("question_mark", "help", "Help", show=False),
         # Esc opens the command palette (hamburger icon). Modals override
         # via their own bindings/on_key so Esc still dismisses dialogs.
-        Binding("escape", "command_palette", show=False),
+        Binding("escape", "app.command_palette", show=False),
     ]
 
     def __init__(self):
@@ -124,6 +125,24 @@ class HomeScreen(Screen):
             except Exception as e:
                 log.exception("home.ack %s failed: %s", iid, e)
                 self.app.notify(f"ack {iid}: {e}", severity="error")
+        self.table.marked.clear()
+        await self.app._do_poll()
+
+    def action_resolve(self):
+        self._do_resolve()
+
+    @work
+    async def _do_resolve(self):
+        ids = self._selected_iids()
+        log.info("home.resolve ids=%s", ids)
+        if not ids:
+            return
+        for iid in ids:
+            try:
+                await A.resolve(iid)
+            except Exception as e:
+                log.exception("home.resolve %s failed: %s", iid, e)
+                self.app.notify(f"resolve {iid}: {e}", severity="error")
         self.table.marked.clear()
         await self.app._do_poll()
 
