@@ -105,6 +105,67 @@ class PickIncidentModal(ModalScreen):
             self.dismiss("__NEW__")
 
 
+class FilterPickModal(ModalScreen):
+    """Pick a filter scope: mine / team / custom. Returns the chosen
+    scope name, or None on Esc. Selecting `custom` is the entry point
+    to the custom user_ids / team_ids editor — the caller chains the
+    edit flow when it sees `custom` come back.
+
+    The row labels show the live underlying values (JPDC.user_id,
+    JPDC.team_ids, the current FilterModel's custom lists) so users
+    can see what each scope means without having to commit.
+    """
+
+    SCOPES = ("mine", "team", "custom")
+
+    def __init__(self, filt):
+        super().__init__()
+        from jpd.config import JPDC
+        self._filt = filt
+        u = JPDC.user_id or "(no user_id)"
+        team_ids = list(JPDC.team_ids) or []
+        team_part = ", ".join(team_ids) if team_ids else "(no teams configured)"
+        cust_bits = []
+        if filt.user_ids:
+            cust_bits.append("u=" + ",".join(filt.user_ids))
+        if filt.team_ids:
+            cust_bits.append("t=" + ",".join(filt.team_ids))
+        cust_part = " ".join(cust_bits) if cust_bits else "(edit…)"
+        self._row_labels = {
+            "mine":   f"mine — {u}",
+            "team":   f"team — {team_part}",
+            "custom": f"custom — {cust_part}",
+        }
+
+    def compose(self) -> ComposeResult:
+        items = []
+        for scope in self.SCOPES:
+            li = ListItem(Label(self._row_labels[scope], markup=False))
+            li.scope = scope
+            items.append(li)
+        yield Vertical(
+            Label("Filter — pick a scope"),
+            ListView(*items, id="pick-list"),
+            id="modal-box",
+        )
+
+    def on_mount(self):
+        lv = self.query_one("#pick-list", ListView)
+        try:
+            lv.index = self.SCOPES.index(self._filt.scope)
+        except ValueError:
+            lv.index = 0
+
+    def on_list_view_selected(self, event):
+        log.info("FilterPickModal selected: scope=%s", event.item.scope)
+        self.dismiss(event.item.scope)
+
+    def on_key(self, event):
+        if event.key == "escape":
+            log.info("FilterPickModal cancelled")
+            self.dismiss(None)
+
+
 class HelpModal(ModalScreen):
     """Show the current screen's BINDINGS plus app-level global state.
 

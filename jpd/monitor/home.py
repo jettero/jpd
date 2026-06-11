@@ -9,7 +9,7 @@ from textual.widgets import Footer, Header
 from jpd.monitor import actions as A
 from jpd.monitor._log import get_logger
 from jpd.monitor.incidents import IncidentsTable
-from jpd.monitor.modals import HelpModal, InputModal
+from jpd.monitor.modals import FilterPickModal, HelpModal, InputModal
 from jpd.query import _parse_snooze
 
 
@@ -32,8 +32,7 @@ class HomeScreen(Screen):
         Binding("S", "snooze_eos", "Snooze→EOS"),
         Binding("m", "merge", "Merge"),
         Binding("e", "edit_title", "Edit title"),
-        Binding("f", "cycle_filter", "Filter ▸"),
-        Binding("F", "edit_filter", "Filter…"),
+        Binding("f", "filter_menu", "Filter…"),
         Binding("W", "write_config", "Save"),
         Binding("question_mark", "help", "Help", show=False),
         # Esc opens the command palette (hamburger icon). Modals override
@@ -236,23 +235,33 @@ class HomeScreen(Screen):
 
     # ---- filter ----------------------------------------------------------
 
-    def action_cycle_filter(self):
-        try:
-            self.app.filt.cycle()
-            self.app.filt._validate()
-        except ValueError as e:
-            log.warning("filter cycle rejected: %s", e)
-            self.app.notify(str(e), severity="error")
-            return
-        log.info("filter cycled -> %s", self.app.filt.description())
-        self._update_subtitle()
-        self._do_refresh()
-
-    def action_edit_filter(self):
-        self._do_edit_filter()
+    def action_filter_menu(self):
+        self._do_filter_menu()
 
     @work
-    async def _do_edit_filter(self):
+    async def _do_filter_menu(self):
+        filt = self.app.filt
+        scope = await self.app.push_screen_wait(FilterPickModal(filt))
+        if scope is None:
+            log.debug("filter_menu: cancelled")
+            return
+        log.info("filter_menu: picked scope=%s", scope)
+        if scope == "custom":
+            await self._edit_custom_filter()
+            return
+        prev = filt.scope
+        filt.scope = scope
+        try:
+            filt._validate()
+        except ValueError as e:
+            log.warning("filter scope %s rejected: %s", scope, e)
+            filt.scope = prev
+            self.app.notify(str(e), severity="error")
+            return
+        self._update_subtitle()
+        await self.app._do_poll()
+
+    async def _edit_custom_filter(self):
         filt = self.app.filt
         cur_u = ",".join(filt.user_ids) or ""
         users = await self.app.push_screen_wait(
@@ -266,12 +275,18 @@ class HomeScreen(Screen):
         )
         if teams is None:
             return
+        prev_scope = filt.scope
+        prev_users = list(filt.user_ids)
+        prev_teams = list(filt.team_ids)
         filt.scope = "custom"
         filt.user_ids = [x.strip() for x in users.split(",") if x.strip()]
         filt.team_ids = [x.strip() for x in teams.split(",") if x.strip()]
         try:
             filt._validate()
         except ValueError as e:
+            filt.scope = prev_scope
+            filt.user_ids = prev_users
+            filt.team_ids = prev_teams
             self.app.notify(str(e), severity="error")
             return
         self._update_subtitle()
@@ -285,10 +300,6 @@ class HomeScreen(Screen):
         log.info("wrote config to %s (auto_ack=%s filter=%s)",
                  app.mon_cfg.write_path, app.auto_ack, app.filt.description())
         app.notify(f"wrote {app.mon_cfg.write_path}")
-
-    @work
-    async def _do_refresh(self):
-        await self.app._do_poll()
 
     # ---- help ------------------------------------------------------------
 

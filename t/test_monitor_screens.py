@@ -25,6 +25,10 @@ def fake_incident():
         "urgency": "high",
         "created_at": "2026-06-06T10:00:00Z",
         "service": {"id": "Ssvc1", "summary": "db"},
+        "assignments": [
+            {"at": "2026-06-06T10:00:00Z",
+             "assignee": {"id": "Uself", "type": "user_reference", "summary": "me"}},
+        ],
         "alerts": [
             {
                 "id": "PALERT1",
@@ -65,6 +69,7 @@ def fake_jpdc(monkeypatch):
         team_ids = ("Tteam",)
 
     monkeypatch.setattr("jpd.monitor.filters.JPDC", _FakeJPDC)
+    monkeypatch.setattr("jpd.monitor.app.JPDC", _FakeJPDC)
     return _FakeJPDC
 
 

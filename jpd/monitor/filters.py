@@ -38,11 +38,6 @@ class FilterModel:
             "statuses": self.statuses,
         }
 
-    def cycle(self):
-        """mine -> team -> custom -> mine."""
-        i = SCOPES.index(self.scope)
-        self.scope = SCOPES[(i + 1) % len(SCOPES)]
-
     def description(self):
         if self.scope == "mine":
             return f"mine ({JPDC.user_id})"

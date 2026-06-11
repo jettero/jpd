@@ -21,17 +21,6 @@ def test_default_scope_is_mine(fresh_config, monkeypatch):
     assert kw["team_ids"] is None
 
 
-def test_cycle(fresh_config, monkeypatch):
-    monkeypatch.setattr("jpd.monitor.filters.JPDC", _fake_jpdc("U", ["TA"]))
-    f = FilterModel(fresh_config)
-    f.cycle()
-    assert f.scope == "team"
-    f.cycle()
-    assert f.scope == "custom"
-    f.cycle()
-    assert f.scope == "mine"
-
-
 def test_team_scope_uses_jpdc_teams(fresh_config, monkeypatch):
     monkeypatch.setattr("jpd.monitor.filters.JPDC", _fake_jpdc("U", ["TA", "TB"]))
     f = FilterModel(fresh_config)

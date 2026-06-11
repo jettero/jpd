@@ -13,6 +13,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.signal import Signal
 
+from jpd.config import JPDC
 from jpd.monitor import actions as A
 from jpd.monitor._log import get_logger, setup as setup_logging
 from jpd.monitor.config import MonitorConfig
@@ -23,6 +24,24 @@ from jpd.query import _parse_snooze
 
 
 log = get_logger("app")
+
+
+def _most_recent_assignee_id(incident):
+    """Return the assignee.id of the most-recent assignment, or None.
+
+    PD does not document the ordering of `incident.assignments`, so we
+    pick the entry with the maximum ISO8601 `at` (lexicographic compare
+    is correct for ISO8601). Returns None for empty / malformed input.
+    """
+    assignments = incident.get("assignments") or []
+    best = None
+    for a in assignments:
+        at = a.get("at") or ""
+        if best is None or at > (best.get("at") or ""):
+            best = a
+    if best is None:
+        return None
+    return (best.get("assignee") or {}).get("id")
 
 
 class MonitorApp(App):
@@ -211,6 +230,11 @@ class MonitorApp(App):
                 continue
             if inc.get("status") != "triggered":
                 log.debug("auto-ack skip %s: status=%s", iid, inc.get("status"))
+                continue
+            mine = _most_recent_assignee_id(inc)
+            if mine != JPDC.user_id:
+                log.info("auto-ack skip %s: most-recent assignee is %s, not me (%s)",
+                         iid, mine, JPDC.user_id)
                 continue
             log.info("auto-ack: %s (snooze=%s)", iid, secs)
             try:
