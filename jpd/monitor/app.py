@@ -26,6 +26,9 @@ from jpd.query import _parse_snooze
 log = get_logger("app")
 
 
+_SPIN_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+
 def _most_recent_assignee_id(incident):
     """Return the assignee.id of the most-recent assignment, or None.
 
@@ -117,6 +120,8 @@ class MonitorApp(App):
         self._cadence_mult = 1
         self.auto_ack_cap_seconds = 4 * 3600
         self.auto_ack_count = 0
+        self.is_polling = False
+        self._spin_idx = 0
         # Published after every successful _do_poll; screens subscribe in
         # on_mount and re-render against the new self.incidents.
         self.data_changed = Signal(self, name="data_changed")
@@ -132,14 +137,22 @@ class MonitorApp(App):
         await self.push_screen(HomeScreen())
         log.debug("HomeScreen pushed; stack=%s", [type(s).__name__ for s in self.screen_stack])
         self._poll_task = asyncio.create_task(self._poll_loop())
+        self.set_interval(0.1, self._advance_spinner)
         await self._refresh_eos()
 
     # ---- title -----------------------------------------------------------
 
     def _refresh_title(self):
+        spin = f"{_SPIN_FRAMES[self._spin_idx]} " if self.is_polling else ""
         flag = " ⚡AUTO-ACK ON" if self.auto_ack else ""
         counter = f"  [auto-acked: {self.auto_ack_count}]" if self.auto_ack_count else ""
-        self.title = f"jpd monitor{flag}{counter}"
+        self.title = f"{spin}jpd monitor{flag}{counter}"
+
+    def _advance_spinner(self):
+        if not self.is_polling:
+            return
+        self._spin_idx = (self._spin_idx + 1) % len(_SPIN_FRAMES)
+        self._refresh_title()
         # The screens manage their own sub_title (breadcrumb).
 
     # ---- polling ---------------------------------------------------------
@@ -166,8 +179,14 @@ class MonitorApp(App):
             self.notify(f"filter: {e}", severity="error")
             return
         log.debug("poll: fetch_incidents(%s)", kw)
+        self.is_polling = True
+        self._refresh_title()
         try:
-            incidents = await A.fetch_incidents(kw, refresh=True)
+            try:
+                incidents = await A.fetch_incidents(kw, refresh=True)
+            finally:
+                self.is_polling = False
+                self._refresh_title()
         except Exception as e:
             if _is_rate_limited(e):
                 self._cadence_mult = min(8, self._cadence_mult * 2)
@@ -189,11 +208,16 @@ class MonitorApp(App):
                 # We mutated server state; the local list is stale. Refetch
                 # so the UI shows what's actually true. Acked means acked.
                 log.debug("auto-acked %d — refetching", acked)
+                self.is_polling = True
+                self._refresh_title()
                 try:
                     incidents = await A.fetch_incidents(kw, refresh=True)
                     self.incidents = incidents or []
                 except Exception as e:
                     log.exception("post-auto-ack refetch failed: %s", e)
+                finally:
+                    self.is_polling = False
+                    self._refresh_title()
         try:
             self.data_changed.publish(None)
             log.debug("data_changed signal published")
