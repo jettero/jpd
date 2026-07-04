@@ -232,6 +232,132 @@ def list_incidents(
     return incidents
 
 
+def list_audit_records(
+    since=None,
+    until=None,
+    root_resource_types=None,
+    actions=None,
+    actor_id=None,
+    actor_type=None,
+    sess=None,
+    dry_run=False,
+    refresh=False,
+    **params,
+):
+    """GET /audit/records — flat list of audit-trail records (who changed what).
+
+    Cursor-based pagination is handled transparently by the client, since
+    /audit/records is a registered CURSOR_BASED_PAGINATION_PATHS endpoint; we
+    just call list_all and get the unwrapped list back.
+
+    Server-side filters: since/until (ISO8601; omit -> ~last 24h, max ~31d
+    span), root_resource_types[] (coarse resource type), actions[]
+    (create/update/delete), actor_id, actor_type. The API cannot filter by a
+    specific resource id — use filter_audit_records() for that.
+    """
+    query_path = "audit/records"
+
+    if sess is None:
+        sess = get_session()
+
+    if since is not None:
+        params["since"] = parse_date(since)
+
+    if until is not None:
+        params["until"] = parse_date(until)
+
+    if root_resource_types:
+        params["root_resource_types[]"] = list(root_resource_types)
+
+    if actions:
+        params["actions[]"] = list(actions)
+
+    if actor_id:
+        params["actor_id"] = actor_id
+
+    if actor_type:
+        params["actor_type"] = actor_type
+
+    if dry_run:
+        return (query_path, params)
+
+    # NOTE: page via iter_cursor, NOT list_all. In pagerduty 6.2.1 iter_all is a
+    # generator whose `return self.iter_cursor(...)` for cursor-pagination
+    # endpoints terminates the generator empty instead of delegating — so
+    # list_all silently returns [] for EVERY cursor endpoint (/audit/records
+    # included) and masks HTTP errors as "no records". iter_cursor paginates
+    # correctly and raises PDClientError on non-2xx (e.g. a 403 Access Denied,
+    # which the audit API returns when the plan/token lacks audit access).
+    def _cursor_fetch(path, params=None):
+        return list(sess.iter_cursor(path, params=params))
+
+    log.debug("list_audit_records -> iter_cursor(%s, %s)", query_path, params)
+    with Spinner(f"GET {query_path}"):
+        return auto_cache(
+            _cursor_fetch,
+            query_path,
+            params=params,
+            cache_group="list_audit_records",
+            refresh=refresh,
+        )
+
+
+def filter_audit_records(records, resource_ids=None, actor_id=None):
+    """Client-side post-filter for audit records (the API can't filter by a
+    specific resource id).
+
+    Keeps records whose root_resource.id is in resource_ids (when given) AND
+    whose actors include actor_id (when given). resource_ids must already be
+    concrete ids — the 'mine' keyword is expanded by the caller.
+    """
+    rid_set = set(resource_ids) if resource_ids else None
+    out = []
+    for r in records:
+        if rid_set is not None and (r.get("root_resource") or {}).get("id") not in rid_set:
+            continue
+        if actor_id is not None and actor_id not in {(a or {}).get("id") for a in (r.get("actors") or [])}:
+            continue
+        out.append(r)
+    return out
+
+
+def my_schedule_ids(user_id=None, lookahead_days=90, sess=None, _now=None):
+    """GET /oncalls?user_ids[]=<me> over [now, now+lookahead_days]; return the
+    sorted distinct schedule ids the user is scheduled to be on-call for going
+    forward.
+
+    Forward-looking on purpose: schedules the user has been rotated off of have
+    no upcoming on-call entries and correctly drop out. This reflects rotation
+    membership within the window, not raw schedule-layer membership — a member
+    whose next slot is beyond lookahead_days won't appear until the window
+    reaches it. _now is injectable for tests.
+    """
+    from datetime import datetime, timedelta, timezone
+    if sess is None:
+        sess = get_session()
+    if user_id is None:
+        user_id = JPDC.user_id
+    now = _now or datetime.now(timezone.utc)
+
+    def _z(dt):
+        return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    params = {
+        "user_ids[]": [user_id],
+        "since": _z(now),
+        "until": _z(now + timedelta(days=lookahead_days)),
+    }
+    with Spinner("GET oncalls"):
+        entries = sess.list_all("oncalls", params=params)
+
+    ids = set()
+    for e in entries or ():
+        sched = e.get("schedule") or {}
+        if sched.get("id"):
+            ids.add(sched["id"])
+    return sorted(ids)
+
+
 def acknowledge_incident(incident_id=None, sess=None, dry_run=False, refresh=False, triggered=False, **params):
     """Acknowledge a triggered incident and optionally snooze it.
 

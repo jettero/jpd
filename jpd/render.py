@@ -301,3 +301,55 @@ def colorize_one(text):
     """Apply the same tag-coloring rules as text rendering, returning an
     ANSI-escaped string. Use Text.from_ansi() to feed into Rich/Textual."""
     return _colorize_text(text, True)
+
+
+AUDIT_SYMBOL = "~"
+
+
+def build_audit_rows(records):
+    """Return [(id, symbol, text), ...] for audit records, before tabulation.
+
+    text is: "<root_resource.type>: <summary> [action][actor][age]" using the
+    same compact [tag] style as incidents.
+    """
+    rows = []
+    for r in records:
+        rr = r.get("root_resource") or {}
+        rtype = rr.get("type", "")
+        rsummary = rr.get("summary") or rr.get("id") or ""
+        actors = r.get("actors") or []
+        actor = (actors[0].get("summary") or actors[0].get("id") or "") if actors else ""
+        et = r.get("execution_time")
+        age_tag = f"[{format_timedelta_brief(et)}]" if et else ""
+        act_tag = f"[{r.get('action', '')}]" if r.get("action") else ""
+        actor_tag = f"[{actor}]" if actor else ""
+        prefix = f"{rtype}: " if rtype else ""
+        text = f"{prefix}{rsummary} {act_tag}{actor_tag}{age_tag}".strip()
+        rows.append([r.get("id", ""), AUDIT_SYMBOL, text])
+    return rows
+
+
+def _colorize_audit_text(rendered, enable):
+    if not enable:
+        return rendered
+    rendered = re.sub(r"\[create\]", lambda m: "\x1b[32m" + m.group(0) + "\x1b[0m", rendered)  # green
+    rendered = re.sub(r"\[update\]", lambda m: "\x1b[33m" + m.group(0) + "\x1b[0m", rendered)  # yellow
+    rendered = re.sub(r"\[delete\]", lambda m: "\x1b[31m" + m.group(0) + "\x1b[0m", rendered)  # red
+    rendered = re.sub(r"\[(?:\d+[smhd])+\]", lambda m: "\x1b[33m" + m.group(0) + "\x1b[0m", rendered)
+    return rendered
+
+
+def audit_records_to_text(records, color="auto"):
+    """Render audit records as a compact three-column plain text table,
+    matching incidents_to_text's width machinery and tag-safe wrapping."""
+    id_width, emoji_width, gap = 14, 1, 2
+    summary_width = int(os.environ.get("COLUMNS", 80)) - (id_width + emoji_width + 2 * gap)
+    if summary_width < 30:
+        raise ValueError("Display too narrow for text renderer")
+
+    rows = build_audit_rows(records)
+    if not rows:
+        return "No audit records."
+
+    rendered = tag_safe_tabulate(rows, tablefmt="plain", maxcolwidths=[None, None, summary_width])
+    return _colorize_audit_text(rendered, _should_color(color))

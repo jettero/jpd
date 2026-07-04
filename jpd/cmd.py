@@ -14,7 +14,7 @@ import jpd.logging
 import os
 import textwrap
 from tabulate import tabulate
-from jpd.render import incidents_to_text
+from jpd.render import incidents_to_text, audit_records_to_text
 
 # log = logging.getLogger("jpd.cmd")
 
@@ -104,6 +104,45 @@ def print_or_whatever(args, doc):
     if args.textify:
         doc = scan_for_html(doc)
     print(json_format(args, doc))
+
+
+def _render_http_error(args, e):
+    """If e is a PagerDuty HttpError, render it (structured json, or a
+    human-friendly 'Error: <status> <message>' plus a bullet per sub-error) and
+    return True. Otherwise return False so the caller can re-raise."""
+    try:
+        from pagerduty.errors import HttpError
+    except Exception:
+        HttpError = None
+    if HttpError is None or not isinstance(e, HttpError):
+        return False
+
+    r = getattr(e, "response", None)
+    status = getattr(r, "status_code", None) or 0
+    try:
+        err_json = r.json() if r is not None else None
+    except Exception:
+        err_json = None
+
+    if args.format == "json" and err_json is not None:
+        print(json_format(args, err_json))
+        return True
+
+    msg = None
+    errs = []
+    if err_json and isinstance(err_json, dict):
+        err_obj = err_json.get("error") or {}
+        if isinstance(err_obj, dict):
+            msg = err_obj.get("message") or err_json.get("message")
+            errors_field = err_obj.get("errors")
+            if isinstance(errors_field, (list, tuple)):
+                errs = [str(x) for x in errors_field if x is not None]
+    if not msg:
+        msg = str(e)
+    print(f"Error: {status} {msg}")
+    for item in errs:
+        print(f"• {item}")
+    return True
 
 
 def _MAP_QUERY(qfunc, *arg_names, **kwarg_mapping):
@@ -344,36 +383,7 @@ def arguments_parser():
             print_or_whatever(args, doc)
         except Exception as e:
             # Gracefully render PagerDuty HttpError as structured output
-            try:
-                from pagerduty.errors import HttpError  # type: ignore
-            except Exception:
-                HttpError = None
-            if HttpError is not None and isinstance(e, HttpError):
-                r = getattr(e, 'response', None)
-                status = getattr(r, 'status_code', None) or 0
-                try:
-                    err_json = r.json() if r is not None else None
-                except Exception:
-                    err_json = None
-                if args.format == 'json' and err_json is not None:
-                    print(json_format(args, err_json))
-                else:
-                    # Human-friendly text: first line status + message, then each error on its own line with a bullet
-                    msg = None
-                    errs = []
-                    if err_json and isinstance(err_json, dict):
-                        err_obj = err_json.get('error') or {}
-                        if isinstance(err_obj, dict):
-                            msg = err_obj.get('message') or err_json.get('message')
-                            errors_field = err_obj.get('errors')
-                            if isinstance(errors_field, (list, tuple)):
-                                errs = [str(x) for x in errors_field if x is not None]
-                    if not msg:
-                        msg = str(e)
-                    print(f"Error: {status} {msg}")
-                    bullet = "•"
-                    for item in errs:
-                        print(f"{bullet} {item}")
+            if _render_http_error(args, e):
                 sys.exit(2)
             raise
 
@@ -463,5 +473,111 @@ def arguments_parser():
         import jpd.monitor as M
         M.run()
     cmd_parsers[-1].set_defaults(func=_monitor_entrypoint)
+
+    ############ AUDIT RECORDS
+    cmd_parsers.append(
+        subs.add_parser(
+            "audit-records",
+            aliases=["audit", "ar"],
+            help="scan the PagerDuty audit log (GET /audit/records)",
+        )
+    )
+    p = cmd_parsers[-1]
+    p.add_argument(
+        "-a",
+        "--since",
+        "--after",
+        type=str,
+        help="records on/after this date (10am, yesterday, 72 hours ago, 2023-01-01); default ~24h, max ~31d span",
+    )
+    p.add_argument("-b", "--until", "--before", type=str, help="records on/before this date")
+    p.add_argument(
+        "-R",
+        "--resource-types",
+        nargs="*",
+        action=MyReplaceDefaultExtend,
+        choices=jpd.const.AUDIT_ROOT_RESOURCE_TYPES,
+        default=None,
+        metavar="TYPE",
+        help=f"server-side filter by root resource type: {', '.join(jpd.const.AUDIT_ROOT_RESOURCE_TYPES)}",
+    )
+    p.add_argument(
+        "--actions",
+        nargs="*",
+        action=MyReplaceDefaultExtend,
+        choices=jpd.const.AUDIT_ACTIONS,
+        default=None,
+        metavar="ACTION",
+        help="server-side filter by action: create, update, delete",
+    )
+    p.add_argument("--actor", type=str, default=None, help="server-side filter by actor id; accepts 'me'/'mine'")
+    p.add_argument(
+        "--resource-ids",
+        nargs="*",
+        action=MyReplaceDefaultExtend,
+        default=None,
+        metavar="ID",
+        help="client-side filter to these resource ids; accepts the 'mine' keyword (your upcoming schedules)",
+    )
+    p.add_argument(
+        "--my-schedules",
+        action="store_true",
+        help="convenience: resource-types=schedules + resource-ids=mine",
+    )
+    p.add_argument(
+        "--lookahead-days",
+        type=int,
+        default=90,
+        help="how far forward to look when resolving 'mine' schedules (default 90)",
+    )
+
+    def _audit_entrypoint(args):
+        resource_types = args.resource_types
+        resource_ids = args.resource_ids
+        if args.my_schedules:
+            resource_types = resource_types or ["schedules"]
+            resource_ids = resource_ids or ["mine"]
+
+        actor_id = None
+        if args.actor:
+            exp = jpd.query.split_strings_maybe(args.actor, context="user")
+            actor_id = exp[0] if exp else args.actor
+
+        try:
+            doc = jpd.query.list_audit_records(
+                since=args.since,
+                until=args.until,
+                root_resource_types=resource_types,
+                actions=args.actions,
+                actor_id=actor_id,
+                dry_run=args.dry_run,
+                refresh=args.refresh,
+            )
+
+            if args.dry_run:
+                print(json_format(args, doc))  # doc is (path, params)
+                return
+
+            if resource_ids:
+                concrete = []
+                for rid in resource_ids:
+                    if rid in ("mine", "my-schedules"):
+                        concrete.extend(jpd.query.my_schedule_ids(lookahead_days=args.lookahead_days))
+                    else:
+                        concrete.append(rid)
+                doc = jpd.query.filter_audit_records(doc, resource_ids=concrete)
+        except Exception as e:
+            # Surface a 403 Access Denied (audit API is plan/permission gated)
+            # rather than letting it read as an empty result.
+            if _render_http_error(args, e):
+                sys.exit(2)
+            raise
+
+        if args.format == "text":
+            print(audit_records_to_text(doc, color=args.color))
+        else:
+            print(json_format(args, doc))
+
+    p.set_defaults(func=_audit_entrypoint)
 
     return main_parser, *cmd_parsers

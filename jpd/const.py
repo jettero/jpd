@@ -25,6 +25,13 @@ STATUSES = ("triggered", "resolved", "acknowledged")
 
 SELF_AND_TEAM = ("me", "mine", "us", "ours")
 
+AUDIT_ACTIONS = ("create", "update", "delete")
+AUDIT_ROOT_RESOURCE_TYPES = (
+    "schedules", "services", "escalation_policies", "teams", "users",
+    "business_services", "priorities", "extensions", "event_orchestrations",
+    "rulesets", "tags", "webhook_subscriptions",
+)
+
 
 class JPDContextException(Exception):
     SET_MEMBERS = tuple()
