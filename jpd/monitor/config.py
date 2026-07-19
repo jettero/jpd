@@ -17,6 +17,14 @@ from jpd.config import DEFAULT_CONFIG_LOCATIONS
 DEFAULTS = {
     "auto_ack": False,
     "poll_seconds": 30,
+    # Terminal theme, restored on launch and re-saved when changed via the
+    # command palette's "Theme" entry.
+    "theme": "ansi-dark",
+    # Scheduled auto-exit conditions. A list of _parse_snooze specs — wall-clock
+    # "HH:MM" (next occurrence, cron-like) or durations ("7.5h", "90m", relative
+    # to launch). Whichever fires first exits the app so PagerDuty reverts to
+    # phone mode. One-off timers set at runtime are NOT stored here.
+    "auto_exit": [],
     "eos_auto_exit": True,
     "eos_grace_minutes": 15,
     "eos_override": None,

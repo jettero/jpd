@@ -21,6 +21,13 @@ from jpd.query import duration_parse
         ("90m", 90 * 60),
         ("1h40s", 3600 + 40),
         (4000, 4000),  # support non-str inputs via str() in parser
+        # fractional components (previously mis-parsed: "7.5h" dropped the "7.")
+        ("7.5h", int(7.5 * 3600)),
+        ("1.5h", 5400),
+        ("0.5d", 43200),
+        ("2.5k", 2500),
+        ("1.5", 2),  # bare fractional seconds, rounded
+        ("7h30m", 7 * 3600 + 30 * 60),
     ],
 )
 def test_duration_parse_parametrized(dstr, dur):

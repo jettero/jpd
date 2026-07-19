@@ -633,8 +633,8 @@ def duration_parse(spec: str) -> int:
     """Parse a duration string into seconds.
 
     Supports:
-    - Integer seconds: "3600"
-    - Units: s, m, h, d (e.g., 90m, 1h40s, 2d1h)
+    - Numeric seconds: "3600", "1.5" (fractional ok)
+    - Units: s, m, h, d (e.g., 90m, 1h40s, 2d1h, 7.5h — fractional ok)
     - Kilo-seconds: 4k, 4ks, 4ksec (== 4000)
     Returns seconds (int). If unparsable, defaults to 3600.
     """
@@ -643,20 +643,20 @@ def duration_parse(spec: str) -> int:
     spec = str(spec).strip()
 
     # ksec variants: 4k, 4ks, 4ksec
-    m = re.fullmatch(r"(\d+)\s*[k](?:\s*s(?:ec)?)?", spec, flags=re.IGNORECASE)
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*[k](?:\s*s(?:ec)?)?", spec, flags=re.IGNORECASE)
     if m:
-        return int(m.group(1)) * 1000
+        return int(round(float(m.group(1)) * 1000))
 
-    # Pure integer
-    if spec.isdigit():
-        return int(spec)
+    # Pure number (seconds), possibly fractional
+    if re.fullmatch(r"\d+(?:\.\d+)?", spec):
+        return int(round(float(spec)))
 
-    # Compound duration: (\d+)([smhd]) ...
-    total = 0
+    # Compound duration: (\d+.\d+)([smhd]) ... — fractional components allowed
+    total = 0.0
     matched_any = False
-    for qty, unit in re.findall(r"(\d+)\s*([sSmMhHdD])", spec):
+    for qty, unit in re.findall(r"(\d+(?:\.\d+)?)\s*([sSmMhHdD])", spec):
         matched_any = True
-        n = int(qty)
+        n = float(qty)
         u = unit.lower()
         if u == "s":
             total += n
@@ -667,7 +667,7 @@ def duration_parse(spec: str) -> int:
         elif u == "d":
             total += n * 86400
     if matched_any:
-        return total
+        return int(round(total))
 
     return 3600
 
@@ -678,24 +678,36 @@ def _parse_snooze(spec: str):
     Returns duration_seconds (int).
     - Integers => seconds
     - Durations: supports numbers with s/m/h/d (e.g., 3600s, 15m, 1h40s, 2d1h)
-    - Clock time HH:MM => compute seconds from now() until that local time (tomorrow if past)
+    - Clock time => seconds from now() until that local time (tomorrow if past):
+        24-hour "HH:MM" (e.g. 21:00) or 12-hour am/pm (e.g. 9pm, 9:30pm, 12am)
     """
     import re
     from datetime import datetime, timedelta
 
     spec = str(spec).strip()
 
-    # Absolute time HH:MM
-    m = re.fullmatch(r"(\d{1,2}):(\d{2})", spec)
-    if m:
-        hh = int(m.group(1))
-        mm = int(m.group(2))
+    def _seconds_until(hh, mm):
         now = datetime.now()
         until = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
         if until <= now:
-            # if time already passed today, choose tomorrow
+            # target already passed today → next occurrence is tomorrow
             until = until + timedelta(days=1)
         return int((until - now).total_seconds())
+
+    # 12-hour am/pm clock: 9pm, 9:30pm, 9 pm, 12am, 12:15AM (dots optional)
+    m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?", spec, flags=re.IGNORECASE)
+    if m and 1 <= int(m.group(1)) <= 12:
+        hh = int(m.group(1)) % 12          # 12 → 0
+        mm = int(m.group(2) or 0)
+        if mm < 60:
+            if m.group(3).lower() == "p":
+                hh += 12                    # 12pm → 12, 9pm → 21
+            return _seconds_until(hh, mm)
+
+    # 24-hour clock HH:MM
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})", spec)
+    if m and int(m.group(1)) < 24 and int(m.group(2)) < 60:
+        return _seconds_until(int(m.group(1)), int(m.group(2)))
 
     # Durations via shared parser
     dur = duration_parse(spec)

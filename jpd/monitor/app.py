@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timezone
 
 from textual import work
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
 from textual.signal import Signal
 
@@ -19,7 +19,7 @@ from jpd.monitor._log import get_logger, setup as setup_logging
 from jpd.monitor.config import MonitorConfig
 from jpd.monitor.filters import FilterModel
 from jpd.monitor.home import HomeScreen
-from jpd.monitor.modals import HelpModal
+from jpd.monitor.modals import AutoExitModal, HelpModal
 from jpd.query import _parse_snooze
 
 
@@ -96,8 +96,6 @@ class MonitorApp(App):
 
     def __init__(self):
         super().__init__()
-        # ansi-dark renders against the terminal's actual background.
-        self.theme = "ansi-dark"
         # Hook _handle_exception so render/event-loop crashes land in our
         # log file. Otherwise Textual catches them, panics quietly, and
         # exits — leaving JPD_MONITOR_LOG with no clue why.
@@ -109,11 +107,17 @@ class MonitorApp(App):
 
         self._handle_exception = _logged_handle_exception
         self.mon_cfg = MonitorConfig()
+        # Restore the saved theme (ansi-dark renders against the terminal's
+        # actual background). Persisted back on change; see _on_theme_changed.
+        self.theme = self.mon_cfg.get("theme", default="ansi-dark") or "ansi-dark"
         self.filt = FilterModel(self.mon_cfg)
         self.incidents = []
         self.auto_ack = bool(self.mon_cfg.get("auto_ack", default=False))
         self._poll_task = None
         self._auto_exit_task = None
+        # Scheduled (config) + one-off (this session) auto-exit conditions.
+        self._exit_tasks = []
+        self._oneoff_exits = []
         self.eos_secs = None
         self.eos_iso = None
         self.eos_summary = None
@@ -138,7 +142,37 @@ class MonitorApp(App):
         log.debug("HomeScreen pushed; stack=%s", [type(s).__name__ for s in self.screen_stack])
         self._poll_task = asyncio.create_task(self._poll_loop())
         self.set_interval(0.1, self._advance_spinner)
+        # Subscribe post-init so the initial theme set in __init__ doesn't
+        # trigger a config write.
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
+        self._arm_exit_conditions()
         await self._refresh_eos()
+
+    # ---- command palette -------------------------------------------------
+
+    def get_system_commands(self, screen):
+        for cmd in super().get_system_commands(screen):
+            # Single-pane app — maximizing the focused widget does nothing
+            # useful, it just clutters the palette.
+            if cmd.title == "Maximize":
+                continue
+            yield cmd
+        yield SystemCommand(
+            "Auto-exit…",
+            "View / add / clear scheduled and one-off auto-exit conditions",
+            self._open_auto_exit_modal,
+        )
+
+    def _open_auto_exit_modal(self):
+        self.push_screen(AutoExitModal())
+
+    def _on_theme_changed(self, theme):
+        name = getattr(theme, "name", None) or self.theme
+        if name == self.mon_cfg.get("theme", default="ansi-dark"):
+            return
+        self.mon_cfg.set("theme", name)
+        self.mon_cfg.write()
+        log.info("theme -> %s (persisted to %s)", name, self.mon_cfg.write_path)
 
     # ---- title -----------------------------------------------------------
 
@@ -332,6 +366,88 @@ class MonitorApp(App):
         await asyncio.sleep(8)
         self.exit()
 
+    # ---- scheduled / one-off auto-exit -----------------------------------
+
+    def exit_conditions(self):
+        """Return armed exit conditions as (kind, spec, secs), soonest first.
+
+        `kind` is "schedule" (persisted in config) or "one-off" (this session).
+        Non-positive / unparsable specs are dropped. Recomputed on demand so
+        the countdowns stay live.
+        """
+        out = []
+        for spec in (self.mon_cfg.get("auto_exit", default=[]) or []):
+            out.append(("schedule", str(spec)))
+        for spec in self._oneoff_exits:
+            out.append(("one-off", str(spec)))
+        rows = []
+        for kind, spec in out:
+            try:
+                secs = _parse_snooze(spec)
+            except Exception as e:
+                log.warning("exit condition %r unparsable: %s", spec, e)
+                continue
+            if not secs or secs < 1:
+                continue
+            rows.append((kind, spec, secs))
+        rows.sort(key=lambda r: r[2])
+        return rows
+
+    def _arm_exit_conditions(self):
+        for t in self._exit_tasks:
+            t.cancel()
+        self._exit_tasks = []
+        for kind, spec, secs in self.exit_conditions():
+            self._exit_tasks.append(
+                asyncio.create_task(self._exit_after(secs, spec, kind))
+            )
+            log.info("auto-exit armed: %s %r -> fires in %ds", kind, spec, secs)
+
+    async def _exit_after(self, seconds, spec, kind):
+        try:
+            await asyncio.sleep(seconds)
+        except asyncio.CancelledError:
+            return
+        self.notify(f"Auto-exit ({kind}: {spec}) — exiting so PD can phone.",
+                    severity="warning", timeout=8)
+        await asyncio.sleep(8)
+        self.exit()
+
+    def add_exit_condition(self, spec, persist=False):
+        """Add a schedule (persist=True) or one-off exit spec, then re-arm."""
+        spec = str(spec).strip()
+        if not spec:
+            return
+        if persist:
+            sched = list(self.mon_cfg.get("auto_exit", default=[]) or [])
+            if spec not in sched:
+                sched.append(spec)
+            self.mon_cfg.set("auto_exit", sched)
+            self.mon_cfg.write()
+        else:
+            self._oneoff_exits.append(spec)
+        self._arm_exit_conditions()
+
+    def remove_exit_condition(self, kind, spec):
+        """Remove one condition (matched by kind+spec), persisting if schedule."""
+        if kind == "schedule":
+            sched = [s for s in (self.mon_cfg.get("auto_exit", default=[]) or [])
+                     if str(s) != spec]
+            self.mon_cfg.set("auto_exit", sched)
+            self.mon_cfg.write()
+        else:
+            try:
+                self._oneoff_exits.remove(spec)
+            except ValueError:
+                pass
+        self._arm_exit_conditions()
+
+    def clear_exit_conditions(self):
+        self._oneoff_exits = []
+        self.mon_cfg.set("auto_exit", [])
+        self.mon_cfg.write()
+        self._arm_exit_conditions()
+
     # ---- global actions --------------------------------------------------
 
     def action_toggle_auto_ack(self):
@@ -378,6 +494,12 @@ class MonitorApp(App):
         ]
         if self.eos_iso:
             lines.append(f"EOS: {self.eos_iso}  ({self.eos_summary or '?'})")
+        conds = self.exit_conditions()
+        if conds:
+            for kind, spec, secs in conds:
+                lines.append(f"auto-exit: {spec}  [{kind}]  in {_pretty_secs(secs)}")
+        else:
+            lines.append("auto-exit: (none)")
         return lines
 
 

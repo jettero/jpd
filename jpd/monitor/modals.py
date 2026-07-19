@@ -166,6 +166,103 @@ class FilterPickModal(ModalScreen):
             self.dismiss(None)
 
 
+class AutoExitModal(ModalScreen):
+    """Manage scheduled + one-off auto-exit conditions.
+
+    First-cut UI: a list of armed conditions (soonest first) with live
+    countdowns, plus action rows to add a one-off timer, add a persisted
+    schedule entry, or clear everything. `d`/`delete` removes the highlighted
+    condition. All mutation goes through the app's exit-condition API, which
+    re-arms the timers and persists the schedule.
+    """
+
+    BINDINGS = [
+        Binding("escape", "close", "Close"),
+        Binding("q", "close", "Close"),
+        Binding("d", "remove", "Remove"),
+        Binding("delete", "remove", "Remove"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("Auto-exit conditions", id="detail-title"),
+            ListView(id="auto-exit-list"),
+            Label("Enter=activate · d=remove · Esc=close", id="detail-hint"),
+            id="modal-box",
+        )
+
+    async def on_mount(self):
+        await self._rebuild()
+
+    async def _rebuild(self):
+        from jpd.monitor.app import _pretty_secs
+
+        lv = self.query_one("#auto-exit-list", ListView)
+        await lv.clear()
+        items = []
+        for kind, spec, secs in self.app.exit_conditions():
+            label = f"{spec:<12} [{kind}]   in {_pretty_secs(secs)}"
+            li = ListItem(Label(label, markup=False))
+            li.meta = ("cond", kind, spec)
+            items.append(li)
+        for key, text in (
+            ("add_oneoff", "＋ Add one-off timer…"),
+            ("add_sched", "＋ Add to schedule (persists)…"),
+            ("clear", "✗ Clear all"),
+        ):
+            li = ListItem(Label(text, markup=False))
+            li.meta = ("action", key, None)
+            items.append(li)
+        await lv.extend(items)
+        # extend() leaves index None → nothing highlighted → Enter/`d` are
+        # no-ops. Highlight the first row so the list is immediately usable.
+        if len(lv):
+            lv.index = 0
+
+    async def on_list_view_selected(self, event):
+        meta = getattr(event.item, "meta", None)
+        if not meta:
+            return
+        typ, key, _ = meta
+        if typ != "action":
+            return  # condition rows: use `d` to remove
+        if key == "add_oneoff":
+            self._add(persist=False)
+        elif key == "add_sched":
+            self._add(persist=True)
+        elif key == "clear":
+            log.info("AutoExitModal: clear all")
+            self.app.clear_exit_conditions()
+            await self._rebuild()
+
+    def _add(self, persist):
+        prompt = ("Save to schedule — 9pm / 21:00 / 7h30m / 90m:" if persist
+                  else "One-off exit — 9pm / 21:00 / 7h30m / 90m:")
+
+        def _done(spec):
+            if spec:
+                log.info("AutoExitModal: add %s spec=%r",
+                         "schedule" if persist else "one-off", spec)
+                self.app.add_exit_condition(spec, persist=persist)
+            self.run_worker(self._rebuild())
+
+        self.app.push_screen(InputModal(prompt), _done)
+
+    async def action_remove(self):
+        lv = self.query_one("#auto-exit-list", ListView)
+        item = lv.highlighted_child
+        meta = getattr(item, "meta", None)
+        if not meta or meta[0] != "cond":
+            return
+        _, kind, spec = meta
+        log.info("AutoExitModal: remove %s spec=%r", kind, spec)
+        self.app.remove_exit_condition(kind, spec)
+        await self._rebuild()
+
+    def action_close(self):
+        self.dismiss(None)
+
+
 class HelpModal(ModalScreen):
     """Show the current screen's BINDINGS plus app-level global state.
 
