@@ -629,14 +629,13 @@ def _parse_iso(s):
     return dt
 
 
-def duration_parse(spec: str) -> int:
-    """Parse a duration string into seconds.
+def _duration_parse_or_none(spec: str):
+    """Parse a duration string into seconds, or None if nothing matched.
 
     Supports:
     - Numeric seconds: "3600", "1.5" (fractional ok)
     - Units: s, m, h, d (e.g., 90m, 1h40s, 2d1h, 7.5h — fractional ok)
     - Kilo-seconds: 4k, 4ks, 4ksec (== 4000)
-    Returns seconds (int). If unparsable, defaults to 3600.
     """
     import re
 
@@ -669,15 +668,25 @@ def duration_parse(spec: str) -> int:
     if matched_any:
         return int(round(total))
 
-    return 3600
+    return None
 
 
-def _parse_snooze(spec: str):
-    """Parse snooze spec.
+def duration_parse(spec: str) -> int:
+    """Parse a duration string into seconds. Unparsable input defaults to 3600.
 
-    Returns duration_seconds (int).
-    - Integers => seconds
-    - Durations: supports numbers with s/m/h/d (e.g., 3600s, 15m, 1h40s, 2d1h)
+    See _duration_parse_or_none for the grammar; this wrapper supplies the
+    1h fallback for callers that want a best-effort default.
+    """
+    d = _duration_parse_or_none(spec)
+    return d if d is not None else 3600
+
+
+def parse_when(spec: str):
+    """Parse a snooze / auto-exit spec to seconds, or None if unrecognized.
+
+    Same grammar as _parse_snooze but WITHOUT the 1h fallback — for callers
+    that must reject typos and unknown formats instead of silently defaulting.
+    - Durations: numbers with s/m/h/d (e.g., 3600s, 15m, 1h40s, 7.5h)
     - Clock time => seconds from now() until that local time (tomorrow if past):
         24-hour "HH:MM" (e.g. 21:00) or 12-hour am/pm (e.g. 9pm, 9:30pm, 12am)
     """
@@ -709,10 +718,15 @@ def _parse_snooze(spec: str):
     if m and int(m.group(1)) < 24 and int(m.group(2)) < 60:
         return _seconds_until(int(m.group(1)), int(m.group(2)))
 
-    # Durations via shared parser
-    dur = duration_parse(spec)
-    if dur is not None:
-        return dur
+    # Durations (None if nothing matched)
+    return _duration_parse_or_none(spec)
 
-    # Fallback: default to 1h
-    return 3600
+
+def _parse_snooze(spec: str):
+    """Parse snooze spec, defaulting to 1h for unrecognized input.
+
+    Thin best-effort wrapper over parse_when; use parse_when directly when a
+    typo must be rejected rather than silently coerced to an hour.
+    """
+    secs = parse_when(spec)
+    return secs if secs is not None else 3600

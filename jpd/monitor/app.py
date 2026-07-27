@@ -20,7 +20,7 @@ from jpd.monitor.config import MonitorConfig
 from jpd.monitor.filters import FilterModel
 from jpd.monitor.home import HomeScreen
 from jpd.monitor.modals import AutoExitModal, HelpModal
-from jpd.query import _parse_snooze
+from jpd.query import _parse_snooze, parse_when
 
 
 log = get_logger("app")
@@ -382,12 +382,13 @@ class MonitorApp(App):
             out.append(("one-off", str(spec)))
         rows = []
         for kind, spec in out:
-            try:
-                secs = _parse_snooze(spec)
-            except Exception as e:
-                log.warning("exit condition %r unparsable: %s", spec, e)
+            secs = parse_when(spec)
+            if secs is None:
+                # Unrecognized (e.g. a hand-edited config typo) — never coerce
+                # to a bogus 1h timer; skip it so PD keeps paging.
+                log.warning("exit condition %r unrecognized — skipping", spec)
                 continue
-            if not secs or secs < 1:
+            if secs < 1:
                 continue
             rows.append((kind, spec, secs))
         rows.sort(key=lambda r: r[2])
@@ -414,10 +415,24 @@ class MonitorApp(App):
         self.exit()
 
     def add_exit_condition(self, spec, persist=False):
-        """Add a schedule (persist=True) or one-off exit spec, then re-arm."""
+        """Add a schedule (persist=True) or one-off exit spec, then re-arm.
+
+        Rejects (does nothing but complain) if the spec is empty, an
+        unrecognized format/typo, or degenerate (past/zero). Returns True iff
+        the condition was added.
+        """
         spec = str(spec).strip()
         if not spec:
-            return
+            return False
+        secs = parse_when(spec)
+        if secs is None:
+            self.notify(f"Can't parse {spec!r} — try 9pm, 21:00, 7h30m, or 90m.",
+                        severity="error", timeout=6)
+            return False
+        if secs < 1:
+            self.notify(f"{spec!r} is zero/past — nothing to arm.",
+                        severity="error", timeout=6)
+            return False
         if persist:
             sched = list(self.mon_cfg.get("auto_exit", default=[]) or [])
             if spec not in sched:
@@ -427,6 +442,7 @@ class MonitorApp(App):
         else:
             self._oneoff_exits.append(spec)
         self._arm_exit_conditions()
+        return True
 
     def remove_exit_condition(self, kind, spec):
         """Remove one condition (matched by kind+spec), persisting if schedule."""

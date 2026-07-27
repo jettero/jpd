@@ -183,6 +183,37 @@ async def test_bad_spec_is_dropped(patched_actions, fake_jpdc, cfg_path):
         assert [c[1] for c in app.exit_conditions()] == ["1h"]
 
 
+@pytest.mark.anyio
+async def test_add_rejects_unparseable(patched_actions, fake_jpdc, cfg_path):
+    from jpd.monitor.app import MonitorApp
+
+    app = MonitorApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.add_exit_condition("tonite", persist=False) is False
+        assert app.add_exit_condition("9p", persist=True) is False
+        assert app.add_exit_condition("0s", persist=False) is False  # degenerate
+        await pilot.pause()
+        # Nothing armed, nothing persisted, nothing added to one-offs.
+        assert app.exit_conditions() == []
+        assert app._oneoff_exits == []
+        assert app.mon_cfg.get("auto_exit") == []
+
+
+@pytest.mark.anyio
+async def test_bad_config_entry_skipped_not_coerced(patched_actions, fake_jpdc, cfg_path):
+    # A hand-edited typo must NOT silently arm a 1h timer — it's skipped.
+    _write_cfg(cfg_path, {"auto_exit": ["tonite", "9pm"]})
+    from jpd.monitor.app import MonitorApp
+
+    app = MonitorApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        specs = [c[1] for c in app.exit_conditions()]
+        assert specs == ["9pm"]
+        assert len(app._exit_tasks) == 1
+
+
 # ---- management modal ----------------------------------------------------
 
 

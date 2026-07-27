@@ -9,7 +9,7 @@ second boundary.
 
 import pytest
 
-from jpd.query import _parse_snooze
+from jpd.query import _parse_snooze, parse_when
 
 
 def _close(a, b):
@@ -52,3 +52,22 @@ def test_clock_time_is_within_a_day():
     # unless it genuinely lands there.
     secs = _parse_snooze("9pm")
     assert 0 < secs <= 24 * 3600
+
+
+@pytest.mark.parametrize(
+    "garbage",
+    ["nope", "9p", "tonite", "pm", "25:00", "13pm", "9:99pm", "", "   ", "h"],
+)
+def test_parse_when_rejects_unrecognized(garbage):
+    # Strict: unrecognized input is None (caller must complain), NOT a silent 1h.
+    assert parse_when(garbage) is None
+    # …while the best-effort wrapper still defaults to 1h for the snooze callers.
+    assert _parse_snooze(garbage) == 3600
+
+
+@pytest.mark.parametrize(
+    "spec,secs",
+    [("90m", 5400), ("7.5h", 27000), ("0s", 0), ("3600", 3600)],
+)
+def test_parse_when_accepts_valid(spec, secs):
+    assert parse_when(spec) == secs
