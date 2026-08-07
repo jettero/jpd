@@ -7,59 +7,8 @@ nothing touches PagerDuty (and nothing mutates live incident state).
 """
 
 import pytest
-import yaml
 
-
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
-
-
-@pytest.fixture
-def patched_actions(monkeypatch):
-    import jpd.monitor.actions as A
-
-    async def _fetch(*_a, **_kw):
-        return []
-
-    async def _resolve_eos(*_a, **_kw):
-        return (None, None, None)
-
-    monkeypatch.setattr(A, "fetch_incidents", _fetch)
-    monkeypatch.setattr(A, "resolve_eos", _resolve_eos)
-    return A
-
-
-@pytest.fixture
-def fake_jpdc(monkeypatch):
-    class _FakeJPDC:
-        api_key = "x"
-        email = "x@x"
-        user_id = "Uself"
-        team_ids = ("Tteam",)
-
-    monkeypatch.setattr("jpd.monitor.filters.JPDC", _FakeJPDC)
-    monkeypatch.setattr("jpd.monitor.app.JPDC", _FakeJPDC)
-    return _FakeJPDC
-
-
-@pytest.fixture
-def cfg_path(monkeypatch, tmp_path):
-    """Point MonitorConfig at a throwaway file; return its path."""
-    path = tmp_path / "monitor.yaml"
-    from jpd.monitor.config import MonitorConfig
-
-    orig_init = MonitorConfig.__init__
-
-    def _init(self, locations=None):
-        orig_init(self, locations=(str(path),))
-
-    monkeypatch.setattr(MonitorConfig, "__init__", _init)
-    return path
-
-
-def _write_cfg(path, monitor_block):
-    path.write_text(yaml.safe_dump({"jpd": {"monitor": monitor_block}}))
+# patched_actions / fake_jpdc / cfg_path / write_cfg / anyio_backend: t/conftest.py
 
 
 # ---- command palette -----------------------------------------------------
@@ -97,8 +46,8 @@ async def test_theme_change_persists(patched_actions, fake_jpdc, cfg_path):
 
 
 @pytest.mark.anyio
-async def test_saved_theme_restored_on_launch(patched_actions, fake_jpdc, cfg_path):
-    _write_cfg(cfg_path, {"theme": "gruvbox"})
+async def test_saved_theme_restored_on_launch(patched_actions, fake_jpdc, cfg_path, write_cfg):
+    write_cfg(cfg_path, {"theme": "gruvbox"})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()
@@ -112,8 +61,8 @@ async def test_saved_theme_restored_on_launch(patched_actions, fake_jpdc, cfg_pa
 
 
 @pytest.mark.anyio
-async def test_schedule_from_config_is_armed(patched_actions, fake_jpdc, cfg_path):
-    _write_cfg(cfg_path, {"auto_exit": ["2h", "30m"]})
+async def test_schedule_from_config_is_armed(patched_actions, fake_jpdc, cfg_path, write_cfg):
+    write_cfg(cfg_path, {"auto_exit": ["2h", "30m"]})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()
@@ -148,8 +97,8 @@ async def test_add_oneoff_and_schedule(patched_actions, fake_jpdc, cfg_path):
 
 
 @pytest.mark.anyio
-async def test_remove_and_clear(patched_actions, fake_jpdc, cfg_path):
-    _write_cfg(cfg_path, {"auto_exit": ["2h"]})
+async def test_remove_and_clear(patched_actions, fake_jpdc, cfg_path, write_cfg):
+    write_cfg(cfg_path, {"auto_exit": ["2h"]})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()
@@ -171,10 +120,10 @@ async def test_remove_and_clear(patched_actions, fake_jpdc, cfg_path):
 
 
 @pytest.mark.anyio
-async def test_bad_spec_is_dropped(patched_actions, fake_jpdc, cfg_path):
+async def test_bad_spec_is_dropped(patched_actions, fake_jpdc, cfg_path, write_cfg):
     # duration_parse falls back to 3600 for pure-nonsense, but an explicitly
     # zero/negative-seconds spec must not arm. "0s" -> 0 -> dropped.
-    _write_cfg(cfg_path, {"auto_exit": ["0s", "1h"]})
+    write_cfg(cfg_path, {"auto_exit": ["0s", "1h"]})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()
@@ -201,9 +150,9 @@ async def test_add_rejects_unparseable(patched_actions, fake_jpdc, cfg_path):
 
 
 @pytest.mark.anyio
-async def test_bad_config_entry_skipped_not_coerced(patched_actions, fake_jpdc, cfg_path):
+async def test_bad_config_entry_skipped_not_coerced(patched_actions, fake_jpdc, cfg_path, write_cfg):
     # A hand-edited typo must NOT silently arm a 1h timer — it's skipped.
-    _write_cfg(cfg_path, {"auto_exit": ["tonite", "9pm"]})
+    write_cfg(cfg_path, {"auto_exit": ["tonite", "9pm"]})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()
@@ -240,8 +189,8 @@ async def test_modal_add_oneoff_via_input(patched_actions, fake_jpdc, cfg_path):
 
 
 @pytest.mark.anyio
-async def test_modal_d_removes_condition(patched_actions, fake_jpdc, cfg_path):
-    _write_cfg(cfg_path, {"auto_exit": ["2h"]})
+async def test_modal_d_removes_condition(patched_actions, fake_jpdc, cfg_path, write_cfg):
+    write_cfg(cfg_path, {"auto_exit": ["2h"]})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()
@@ -257,8 +206,8 @@ async def test_modal_d_removes_condition(patched_actions, fake_jpdc, cfg_path):
 
 
 @pytest.mark.anyio
-async def test_help_lists_auto_exit(patched_actions, fake_jpdc, cfg_path):
-    _write_cfg(cfg_path, {"auto_exit": ["3h"]})
+async def test_help_lists_auto_exit(patched_actions, fake_jpdc, cfg_path, write_cfg):
+    write_cfg(cfg_path, {"auto_exit": ["3h"]})
     from jpd.monitor.app import MonitorApp
 
     app = MonitorApp()

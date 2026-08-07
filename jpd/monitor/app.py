@@ -6,7 +6,7 @@ Modals live in jpd/monitor/modals.py.
 
 import asyncio
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from textual import work
 from textual.app import App, ComposeResult, SystemCommand
@@ -20,7 +20,7 @@ from jpd.monitor.config import MonitorConfig
 from jpd.monitor.filters import FilterModel
 from jpd.monitor.home import HomeScreen
 from jpd.monitor.modals import AutoExitModal, HelpModal
-from jpd.query import _parse_snooze, parse_when
+from jpd.query import _parse_iso, _parse_snooze, parse_when
 
 
 log = get_logger("app")
@@ -118,7 +118,8 @@ class MonitorApp(App):
         # Scheduled (config) + one-off (this session) auto-exit conditions.
         self._exit_tasks = []
         self._oneoff_exits = []
-        self.eos_secs = None
+        # Absolute handoff instant, not a duration — see the eos_secs property.
+        self.eos_at = None
         self.eos_iso = None
         self.eos_summary = None
         self._cadence_mult = 1
@@ -260,10 +261,27 @@ class MonitorApp(App):
 
     # ---- auto-ack --------------------------------------------------------
 
-    def _auto_ack_snooze_seconds(self):
-        if not self.eos_secs:
+    def _shift_end_seconds(self):
+        """Seconds until the shift really ends, or None if we know of no end.
+
+        The soonest of the PD-derived EOS and every armed auto-exit condition.
+        The exit conditions belong here: when the user pins the real handoff
+        with `auto_exit: [21:00]`, that's the wall — and past any exit we're
+        no longer watching at all, so a snooze reaching beyond it leaves a PD
+        silent with nobody home.
+        """
+        ends = [secs for _, _, secs in self.exit_conditions()]
+        if self.eos_secs:
+            ends.append(self.eos_secs)
+        if not ends:
             return None
-        return max(60, min(self.eos_secs, self.auto_ack_cap_seconds))
+        return min(ends)
+
+    def _auto_ack_snooze_seconds(self):
+        end = self._shift_end_seconds()
+        if not end:
+            return None
+        return max(60, min(end, self.auto_ack_cap_seconds))
 
     async def _auto_ack_sweep(self, incidents):
         """Ack every currently-triggered incident. Returns the count.
@@ -307,7 +325,7 @@ class MonitorApp(App):
         if acked:
             self.auto_ack_count += acked
             self._refresh_title()
-            window = "no snooze (EOS unknown)" if secs is None else f"snooze {_pretty_secs(secs)}"
+            window = "no snooze (no shift end known)" if secs is None else f"snooze {_pretty_secs(secs)}"
             log.info("auto-ack sweep done: %d acked (total %d) — %s", acked, self.auto_ack_count, window)
             self.notify(f"auto-ack: {acked} PD(s) — {window}", timeout=5)
         else:
@@ -316,13 +334,28 @@ class MonitorApp(App):
 
     # ---- EOS -------------------------------------------------------------
 
+    @property
+    def eos_secs(self):
+        """Seconds until end of shift — recomputed on every read.
+
+        We keep the absolute handoff instant (eos_at) and derive the
+        countdown, rather than storing the duration resolved at mount.
+        A stored duration is wrong by however long the app has been up,
+        which is how auto-ack kept handing out full 4h snoozes an hour
+        before handoff. Zero once the shift is over; None if unknown.
+        """
+        if self.eos_at is None:
+            return None
+        return max(0, int((self.eos_at - datetime.now(timezone.utc)).total_seconds()))
+
     async def _refresh_eos(self):
         override = self.mon_cfg.get("eos_override", default=None)
         if override:
-            self.eos_secs = _parse_snooze(str(override))
+            secs = _parse_snooze(str(override))
+            self.eos_at = datetime.now(timezone.utc) + timedelta(seconds=secs)
             self.eos_iso = f"override:{override}"
             self.eos_summary = "override"
-            log.info("EOS: override=%s -> %ds", override, self.eos_secs)
+            log.info("EOS: override=%s -> %ds", override, secs)
         else:
             la = int(self.mon_cfg.get("eos_lookahead_hours", default=36) or 36)
             try:
@@ -331,7 +364,7 @@ class MonitorApp(App):
                 log.exception("EOS lookup failed: %s", e)
                 self.notify(f"EOS lookup failed: {e}", severity="warning")
                 return
-            self.eos_secs = secs
+            self.eos_at = _parse_iso(iso)
             self.eos_iso = iso
             self.eos_summary = summary
             log.info("EOS: oncalls secs=%s iso=%s via=%s", secs, iso, summary)

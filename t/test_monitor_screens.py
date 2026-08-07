@@ -8,11 +8,7 @@ screen stack reaches the expected depths under drill-in / back keys.
 
 import pytest
 
-
-# Pin the anyio backend to asyncio — textual is asyncio-only.
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
+# patched_actions / fake_jpdc / cfg_path / anyio_backend: t/conftest.py
 
 
 @pytest.fixture
@@ -44,51 +40,13 @@ def fake_incident():
 
 
 @pytest.fixture
-def patched_actions(monkeypatch, fake_incident):
-    """Stub network-touching actions so the app boots cleanly."""
-    import jpd.monitor.actions as A
-
-    async def _fetch(*_a, **_kw):
-        return [fake_incident]
-
-    async def _resolve_eos(*_a, **_kw):
-        return (None, None, None)
-
-    monkeypatch.setattr(A, "fetch_incidents", _fetch)
-    monkeypatch.setattr(A, "resolve_eos", _resolve_eos)
-    return A
-
-
-@pytest.fixture
-def fake_jpdc(monkeypatch):
-    """Sidestep real config file reading."""
-    class _FakeJPDC:
-        api_key = "x"
-        email = "x@x"
-        user_id = "Uself"
-        team_ids = ("Tteam",)
-
-    monkeypatch.setattr("jpd.monitor.filters.JPDC", _FakeJPDC)
-    monkeypatch.setattr("jpd.monitor.app.JPDC", _FakeJPDC)
-    return _FakeJPDC
-
-
-@pytest.fixture
-def fake_cfg(monkeypatch, tmp_path):
-    cfg_path = tmp_path / "monitor.yaml"
-    from jpd.monitor.config import MonitorConfig
-
-    orig_init = MonitorConfig.__init__
-
-    def _init(self, locations=None):
-        orig_init(self, locations=(str(cfg_path),))
-
-    monkeypatch.setattr(MonitorConfig, "__init__", _init)
-    return cfg_path
+def incidents(fake_incident):
+    """What the stubbed fetch serves these screens."""
+    return [fake_incident]
 
 
 @pytest.mark.anyio
-async def test_boots_to_home(patched_actions, fake_jpdc, fake_cfg):
+async def test_boots_to_home(patched_actions, fake_jpdc, cfg_path):
     from jpd.monitor.app import MonitorApp
     from jpd.monitor.home import HomeScreen
 
@@ -100,7 +58,7 @@ async def test_boots_to_home(patched_actions, fake_jpdc, fake_cfg):
 
 
 @pytest.mark.anyio
-async def test_right_arrow_drills_in_and_esc_goes_back(patched_actions, fake_jpdc, fake_cfg):
+async def test_right_arrow_drills_in_and_esc_goes_back(patched_actions, fake_jpdc, cfg_path):
     from jpd.monitor.app import MonitorApp
     from jpd.monitor.home import HomeScreen
     from jpd.monitor.incident import IncidentScreen
@@ -129,7 +87,7 @@ async def test_right_arrow_drills_in_and_esc_goes_back(patched_actions, fake_jpd
 
 
 @pytest.mark.anyio
-async def test_auto_ack_count_visible_during_drill(patched_actions, fake_jpdc, fake_cfg, fake_incident):
+async def test_auto_ack_count_visible_during_drill(patched_actions, fake_jpdc, cfg_path, fake_incident):
     """Auto-ack happens app-level — drilling shouldn't stop it.
 
     We simulate a poll cycle that triggers the auto-ack path by toggling
